@@ -121,3 +121,15 @@
 4. Какой канал сдачи и кому принадлежит финальный репозиторий?
 
 До подтверждения этих вопросов этот документ остаётся **проектом распределения**, а не обязательством участников.
+
+
+## 9. GitHub-задачи и персональные инструкции
+
+- [Gate 0: согласование правил и команды](https://github.com/Alishka14/genesis-hackathon-2026/issues/2)
+- [Участник №1: интеграция, baselines, сдача](https://github.com/Alishka14/genesis-hackathon-2026/issues/3)
+- [Участник №2: данные и ошибки](https://github.com/Alishka14/genesis-hackathon-2026/issues/4)
+- [Участник №3: RL-среда и изоляция](https://github.com/Alishka14/genesis-hackathon-2026/issues/5)
+- [Участник №4: matcher, награда, QA](https://github.com/Alishka14/genesis-hackathon-2026/issues/6)
+- [Готовые запросы к ChatGPT для каждого участника](CHATGPT_ROLE_PROMPTS.md)
+
+**Важно:** Issues созданы без назначенных людей; это предварительные задачи и они заблокированы до Gate 0. PR #1 остаётся черновиком, `main` не менялся.

@@ -36,3 +36,9 @@
 > Роль […], PR […], commit […]. Готовые интерфейсы […]. Тесты PASS […], FAIL […], NOT_RUN […]. Данные/фикстуры […]. Известные ограничения […]. Нужна помощь роли №[…] по вопросу […]. Готовность к merge: ДА/НЕТ.
 
 **Источники:** официальный кейс GENESIS FinTech (6 стр.); предварительный план `docs/LEDGERGYM_TEAM_EXECUTION_PLAN.md`; репозиторные правила `AGENTS.md`.
+
+## Дополнительный стартовый запрос по трём новым модулям
+
+> LedgerGym: к моей роли добавили CAB (Causal Audit Benchmark), EQT (Evidence Quality Taxonomy) и FAA (False Accusation Analysis). Прочитай `docs/DIAGNOSTIC_EXTENSIONS.md` и `docs/DIAGNOSTIC_TEST_MATRIX.md`. Я участник №[1/2/3/4]. Моя разрешённая зона: […]. Пока Gate 0 не подтверждён, дай только план и тест-векторы. Когда разрешение будет получено, предложи один минимальный PR в рамках моей зоны и негативные тесты. Не раскрывай приватные метки агенту. Сравни reward и F1 до и после внедрения диагностики, чтобы убедиться, что официальные метрики не изменились. Не заявляй PASS без реального вывода теста.
+
+**Распределение:** №2 отвечает за CAB fixture generator, №4 за CAB adjudication + EQT + FAA, №3 за отсутствие утечек private меток, №1 за согласование contract/отчётов. Новые задачи: [#7](https://github.com/Alishka14/genesis-hackathon-2026/issues/7), [#8](https://github.com/Alishka14/genesis-hackathon-2026/issues/8), [#9](https://github.com/Alishka14/genesis-hackathon-2026/issues/9).

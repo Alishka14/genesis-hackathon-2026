@@ -133,3 +133,15 @@
 - [Готовые запросы к ChatGPT для каждого участника](CHATGPT_ROLE_PROMPTS.md)
 
 **Важно:** Issues созданы без назначенных людей; это предварительные задачи и они заблокированы до Gate 0. PR #1 остаётся черновиком, `main` не менялся.
+
+## 10. Дополнения от 19.11.2026: проверка причинности, качества evidence, ложных обвинений
+
+Эти три идеи включены в архитектурный план **без расширения обязательного P0**:
+
+1. **CAB / Causal Audit Benchmark** — минимальная причинная дельта и неизменность оценки после несущественных изменений. **Issue [#7](https://github.com/Alishka14/genesis-hackathon-2026/issues/7)**; основной №2, проверка №4.
+2. **EQT / Evidence Quality Taxonomy** — неполные, лишние, устаревшие/недействительные, противоречивые доказательства. **Issue [#8](https://github.com/Alishka14/genesis-hackathon-2026/issues/8)**; основной №4.
+3. **FAA / False Accusation Analysis** — отдельно FP на обычных valid, hard-negative valid, дубликатах и неклассифицируемых ответах. **Issue [#9](https://github.com/Alishka14/genesis-hackathon-2026/issues/9)**; основной №4, closed labels №2.
+
+**Подробные определения:** [`docs/DIAGNOSTIC_EXTENSIONS.md`](DIAGNOSTIC_EXTENSIONS.md). **Набор первых тестов:** [`docs/DIAGNOSTIC_TEST_MATRIX.md`](DIAGNOSTIC_TEST_MATRIX.md).
+
+**Обязательное правило:** эти измерения не меняют официальный контракт, 1:1 matcher, F1 и reward; `pair_id`, causal delta и negative labels хранятся только evaluator-side. Текущий статус: **DESIGN / NOT IMPLEMENTED / NOT_RUN**, до Gate 0 код запрещён.

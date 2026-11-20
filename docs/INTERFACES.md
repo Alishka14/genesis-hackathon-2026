@@ -1,4 +1,47 @@
-# LedgerGym — предварительный контракт v0.3
+# LedgerGym — environment interfaces v0.4
+
+## Canonical judge protocol (Role 3, 21 November 2026)
+
+The root `judge_adapter.py` is the organizer entry point. The older flat-action interface below remains a compatibility API, not the canonical judge transport. Runtime uses only the Python standard library; tests use the pinned `requirements-role3-test.txt`.
+
+```python
+generate_episode(seed, config, output_dir)  # delegates existing generator/export; returns None
+make_env()                                # trusted judge object with reset and step
+score_episode(episode_dir, findings, inspection_steps)
+```
+
+Generation accepts the existing Role 2 team configuration. The output contains `public/` (manifest, policy, ledger, invoices, payments, fx) and judge-only `private/` (truth, provenance). Existing nonempty output directories are not overwritten. It does not replace or expand the financial generator.
+
+`env.reset(seed, {"mode":"closed","episode_dir":path,"team_config":{}})` loads those supplied files, preserves IDs/order/values, and never regenerates after a load failure. `mode="train"` without episode_dir delegates the existing generator using team_config. Reset failures disable the prior episode and return a bounded exception, not a private path or traceback message. Initial output is `({"task":str,"manifest":object,"policy":object,"remaining_steps":100}, {})`.
+
+Canonical actions are `{"name":NAME,"args":ARGUMENTS}`:
+
+| Name | Args | Successful result |
+| --- | --- | --- |
+| list_records | table, cursor (null first), limit (1–50) | {records:[...],next_cursor:null/string} |
+| get_record | table, id | record object |
+| get_document | doc_id | invoice/payment object |
+| calculator | expression | Decimal result string |
+| submit | findings: {episode_id, findings:[...]} | {accepted:true} |
+
+Step returns `({"result":value_or_null,"error":null_or_{code,message},"remaining_steps":int}, reward, terminated, truncated, {})`. Unknown actions/tables/IDs and malformed reads spend one action and produce bounded errors. Malformed submit terminates; closed reward is still zero. The findings validator and matcher remain Role 4 implementations; their documented outstanding normalization defects are not silently replaced here.
+
+One hundred actions include submit; 99 inspections plus submit are accepted, while 100 inspections truncate to empty findings. Inspection cost excludes submit. The deadline starts at reset entry and includes policy execution. Completion freezes the result until reset. Post-terminal operations cannot rescore or append findings.
+
+`score_episode` returns tp, fp, fn, precision, recall, f1 and return. Structurally invalid findings return null for the six metrics and return=-1; a bounded error is logged on the trusted evaluator logger. `env.final_score` is evaluator-only. Closed policy rewards are always zero and public info is empty, including terminal and malformed-submit responses. Train returns terminal reward. Scoring uses existing evaluation code and its official formula.
+
+Canonical cursors are deterministic, table/page-bound and accepted only after issuance in the current reset. Reset clears issued authority. After an identical page is legitimately issued again, an identical historical string is necessarily indistinguishable from the newly issued string; current issuance is the authority. Native legacy clients retain their existing random tokens and portable replay. Exact canonical replay uses unchanged literal actions and full observable-value comparison, including tokens.
+
+`run_file_agent(seed, config, agent_path, timeout=60)` in `ledgergym.isolated_runner` runs a policy through the restricted Docker path. Only its script is mounted; source, episode files, truth and Docker socket are not mounted. There is no unsandboxed fallback. Network is disabled; filesystem and process resources are restricted. Returned score/trajectory are trusted caller artifacts. Missing Docker/image is an explicit runtime limitation, not evidence of isolation.
+
+`FlightRecorder` and `verify_replay` in `ledgergym.flight_recorder` record/compare episode_id, step, action, observation, visible reward, terminated and truncated without adding truth to observations. A same-process judge object or recorder is not a security boundary: untrusted policies must never receive it directly.
+
+Verification: `python -m ledgergym.role3_mirror`. Demos: `python -m ledgergym.role3_demo local --trajectory trajectories.jsonl`; `python -m ledgergym.role3_demo restricted --episode PATH --trajectory trajectories.jsonl`. The restricted demo must run the real pinned Docker image or report NOT_RUN.
+
+See ROLE3_PHASE1_VERIFICATION.md, ROLE3_PHASE2_SECURITY.md and ROLE3_FINAL_VERIFICATION.md for actual results and limitations. The 20 paired tests cover environment transport and replay; they do not certify the Role 2/4 financial D01–D20 content.
+
+## Historical native contract v0.3
+
 
 Статус: ПРОЕКТ, требуется сверка с оригинальным FinTech PDF и review команды. Разработка разрешена капитаном 20.11.2026; в команде три человека, персональные назначения ещё не предоставлены. Контракт не является подтверждением условий организаторов.
 

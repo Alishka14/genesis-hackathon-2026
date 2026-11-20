@@ -22,6 +22,12 @@ _READ_FIELDS = {
 }
 
 
+def _record_identifier(table, row):
+    if table == "fx" and not row.get("rate_id"):
+        return ":".join(row[key] for key in ("date", "source_currency", "target_currency"))
+    return row.get(_RECORD_KEYS[table])
+
+
 def calculate(expression):
     if not isinstance(expression, str) or len(expression) > 128:
         raise ValueError("invalid expression")
@@ -53,7 +59,7 @@ def calculate(expression):
 
 
 class LedgerSandbox:
-    def __init__(self, public=None, evaluator=None, closed=False, timeout=60, *, episode_factory=None):
+    def __init__(self, public=None, evaluator=None, closed=False, timeout=60, *, episode_factory=None, cursor_factory=None):
         if (public is None) != (evaluator is None):
             raise ValueError("public and evaluator must be supplied together")
         if public is not None and episode_factory is not None:
@@ -62,6 +68,7 @@ class LedgerSandbox:
             from .runtime import create_episode
             episode_factory = create_episode
         self._episode_factory = episode_factory
+        self._cursor_factory = cursor_factory
         self._fixed_public = copy.deepcopy(public)
         self._fixed_evaluator = evaluator
         self.public = None
@@ -139,7 +146,7 @@ class LedgerSandbox:
             if next_offset < len(tables[table]):
                 page = (table, next_offset)
                 if page not in self._page_cursors:
-                    token = secrets.token_urlsafe(24)
+                    token = self._cursor_factory(*page) if self._cursor_factory else secrets.token_urlsafe(24)
                     self._page_cursors[page] = token
                     self._cursors[token] = page
                 next_cursor = self._page_cursors[page]
@@ -148,10 +155,9 @@ class LedgerSandbox:
             table, record_id = action.get("table"), action.get("id")
             if not isinstance(table, str) or table not in _RECORD_KEYS or not isinstance(record_id, str):
                 raise ValueError()
-            key = _RECORD_KEYS[table]
-            for row in tables[table]:
-                if row.get(key) == record_id:
-                    return {"record": row}
+            matched = [row for row in tables[table] if _record_identifier(table, row) == record_id]
+            if len(matched) == 1:
+                return {"record": matched[0]}
             raise ValueError()
         if kind == "get_document":
             doc_id = action.get("doc_id")
@@ -166,9 +172,11 @@ class LedgerSandbox:
             return {"value": calculate(action.get("expression"))}
         raise ValueError()
 
-    def _finish(self, findings, truncated=False):
+    def _finish(self, findings, truncated=False, *, inspection_steps=None):
         self.done = True
-        score = self.evaluator(findings, self.steps if truncated else self.steps - 1)
+        if inspection_steps is None:
+            inspection_steps = self.steps if truncated else self.steps - 1
+        score = self.evaluator(findings, inspection_steps)
         if self.closed:
             return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, 0.0, not truncated, truncated, {}
         return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, score["reward"], not truncated, truncated, {"score": score}

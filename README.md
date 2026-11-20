@@ -1,5 +1,15 @@
 # LedgerGym — ранний прототип
 
+## Role 3 canonical judge runtime (21 November 2026)
+
+The organizer entry points are now `judge_adapter.generate_episode(seed, config, output_dir)`, `judge_adapter.make_env()` and `judge_adapter.score_episode(episode_dir, findings, inspection_steps)`. The judge environment accepts `{name,args}`, supports closed/train modes and externally supplied episodes without regenerating them, and provides deterministic canonical pagination and per-step trajectories. Financial generation and scoring remain delegated to the existing owners.
+
+For verification, install test-only dependencies with `python -m pip install -r requirements-role3-test.txt`, then run `python -m pytest -q -rs` and `python -m ledgergym.role3_mirror`. Runtime itself has no third-party Python dependencies. These are local checks; they do not certify financial data generation or unavailable container isolation.
+
+Run `python -m ledgergym.role3_demo local --trajectory trajectories.jsonl` for inspect/document/calculator/submit/replay. With Docker and the exact image documented below already present, run `python -m ledgergym.role3_demo restricted --episode PATH --trajectory trajectories.jsonl` for the actual file-fed closed policy path. Missing Docker/image produces NOT_RUN; there is no insecure subprocess fallback.
+
+Protocol, compatibility and trust boundaries: [docs/INTERFACES.md](docs/INTERFACES.md). Measured results: [Phase 1](docs/ROLE3_PHASE1_VERIFICATION.md), [security](docs/ROLE3_PHASE2_SECURITY.md), [final verification](docs/ROLE3_FINAL_VERIFICATION.md). Generator/matcher/provenance limitations remain material; this change does not declare the entire project competition-ready.
+
 LedgerGym — проект синтетической RL-среды для финансового аудита. Репозиторий содержит **начальный прототип**, а не завершённое конкурсное решение. Текущий срез создаёт малый детерминированный пример, предоставляет ограниченные инструменты чтения и расчёта и оценивает находки по доказательствам и формуле проекта.
 
 **Ограничение безопасности:** обычная среда и callback оценщика выполняются в одном процессе и не изолируют недоверенного агента. Экспериментальный `isolated_runner` запускает агент в ограниченном Docker-контейнере, но ещё требует независимого аудита и проверки на инфраструктуре жюри; его нельзя считать доказанной защитой для закрытой конкурсной оценки. См. `docs/STATUS.md`.

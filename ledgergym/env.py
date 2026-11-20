@@ -4,8 +4,22 @@ import copy
 from decimal import Decimal, DecimalException, localcontext
 import operator
 import re
+import secrets
 import time
 from .score import validate_submission
+
+
+# Availability in an input mapping does not grant access to an agent.
+_RECORD_KEYS = {
+    "ledger": "row_id", "invoices": "invoice_id",
+    "payments": "payment_id", "fx": "rate_id",
+}
+_READ_FIELDS = {
+    "list_records": ({"action", "table"}, {"cursor", "limit"}),
+    "get_record": ({"action", "table", "id"}, set()),
+    "get_document": ({"action", "doc_id"}, set()),
+    "calculator": ({"action", "expression"}, set()),
+}
 
 
 def calculate(expression):
@@ -49,6 +63,8 @@ class LedgerSandbox:
     def reset(self, seed=None, config=None):
         self.steps = 0
         self.started = time.monotonic()
+        self._cursors = {}
+        self._page_cursors = {}
         self.done = False
         return {"manifest": copy.deepcopy(self.public["manifest"]), "policy": copy.deepcopy(self.public["policy"]), "remaining_steps": 100}, {}
 
@@ -75,30 +91,43 @@ class LedgerSandbox:
         return copy.deepcopy(obs), 0.0, False, False, {}
 
     def _read(self, action, kind):
+        if not isinstance(kind, str) or kind not in _READ_FIELDS:
+            raise ValueError()
+        required, optional = _READ_FIELDS[kind]
+        if not required <= set(action) <= required | optional:
+            raise ValueError()
         tables = self.public["tables"]
         if kind == "list_records":
             table, cursor, limit = action.get("table"), action.get("cursor"), action.get("limit", 50)
-            if not isinstance(table, str) or table not in tables or type(limit) is not int or not 1 <= limit <= 50:
+            if not isinstance(table, str) or table not in _RECORD_KEYS or type(limit) is not int or not 1 <= limit <= 50:
                 raise ValueError()
             offset = 0
             if cursor is not None:
-                prefix = self.public["manifest"]["episode_id"] + ":" + table + ":"
-                if not isinstance(cursor, str) or not cursor.startswith(prefix) or not cursor[len(prefix):].isascii() or not cursor[len(prefix):].isdigit():
+                if not isinstance(cursor, str) or cursor not in self._cursors:
                     raise ValueError()
-                offset = int(cursor[len(prefix):])
+                cursor_table, offset = self._cursors[cursor]
+                if cursor_table != table:
+                    raise ValueError()
             if offset > len(tables[table]):
                 raise ValueError()
             rows = tables[table][offset:offset + limit]
             next_offset = offset + len(rows)
-            next_cursor = f'{self.public["manifest"]["episode_id"]}:{table}:{next_offset}' if next_offset < len(tables[table]) else None
+            next_cursor = None
+            if next_offset < len(tables[table]):
+                page = (table, next_offset)
+                if page not in self._page_cursors:
+                    token = secrets.token_urlsafe(24)
+                    self._page_cursors[page] = token
+                    self._cursors[token] = page
+                next_cursor = self._page_cursors[page]
             return {"records": rows, "next_cursor": next_cursor}
         if kind == "get_record":
             table, record_id = action.get("table"), action.get("id")
-            if not isinstance(table, str) or table not in tables or not isinstance(record_id, str):
+            if not isinstance(table, str) or table not in _RECORD_KEYS or not isinstance(record_id, str):
                 raise ValueError()
-            key = {"ledger": "row_id", "invoices": "invoice_id", "payments": "payment_id"}.get(table)
+            key = _RECORD_KEYS[table]
             for row in tables[table]:
-                if key and row.get(key) == record_id:
+                if row.get(key) == record_id:
                     return {"record": row}
             raise ValueError()
         if kind == "get_document":

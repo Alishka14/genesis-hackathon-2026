@@ -18,7 +18,7 @@ def test_investigate_submit_score_end_to_end():
     def evaluator(findings, steps):
         return evaluate(truth["issues"], findings, ids, steps)
     env = LedgerSandbox(public, evaluator)
-    obs, info = env.reset(seed=42, config={})
+    obs, info = env.reset()
     assert obs["remaining_steps"] == 100
     obs, reward, terminated, truncated, info = env.step({"action": "list_records", "table": "invoices", "limit": 50})
     assert reward == 0 and not terminated and not truncated

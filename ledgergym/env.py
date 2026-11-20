@@ -53,20 +53,43 @@ def calculate(expression):
 
 
 class LedgerSandbox:
-    def __init__(self, public, evaluator, closed=False, timeout=60):
-        self.public = copy.deepcopy(public)
-        self.evaluator = evaluator
+    def __init__(self, public=None, evaluator=None, closed=False, timeout=60, *, episode_factory=None):
+        if (public is None) != (evaluator is None):
+            raise ValueError("public and evaluator must be supplied together")
+        if public is not None and episode_factory is not None:
+            raise ValueError("choose a fixed episode or an episode factory")
+        if public is None and episode_factory is None:
+            from .runtime import create_episode
+            episode_factory = create_episode
+        self._episode_factory = episode_factory
+        self._fixed_public = copy.deepcopy(public)
+        self._fixed_evaluator = evaluator
+        self.public = None
+        self.evaluator = None
         self.closed = closed
         self.timeout = timeout
         self.done = True
 
     def reset(self, seed=None, config=None):
-        self.steps = 0
-        self.started = time.monotonic()
+        # A failed reset must not leave the preceding episode usable.
+        self.done = True
+        self.public = None
+        self.evaluator = None
         self._cursors = {}
         self._page_cursors = {}
+        if self._episode_factory is None:
+            if seed is not None or config is not None:
+                raise ValueError("fixed episodes do not accept seed or config")
+            public, evaluator = self._fixed_public, self._fixed_evaluator
+        else:
+            public, evaluator = self._episode_factory(seed, copy.deepcopy(config))
+        public = copy.deepcopy(public)
+        initial = {"manifest": copy.deepcopy(public["manifest"]), "policy": copy.deepcopy(public["policy"]), "remaining_steps": 100}
+        self.public, self.evaluator = public, evaluator
+        self.steps = 0
+        self.started = time.monotonic()
         self.done = False
-        return {"manifest": copy.deepcopy(self.public["manifest"]), "policy": copy.deepcopy(self.public["policy"]), "remaining_steps": 100}, {}
+        return initial, {}
 
     def step(self, action):
         if self.done:

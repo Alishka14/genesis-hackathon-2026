@@ -85,6 +85,7 @@ def run_baseline(public, truth, policy, seed=0):
     budget_exhausted = False
     for name in tables:
         cursor = None
+        cursor_step = None
         while True:
             if len(trajectory) >= 99:
                 budget_exhausted = True
@@ -93,11 +94,15 @@ def run_baseline(public, truth, policy, seed=0):
             if cursor is not None:
                 action['cursor'] = cursor
             obs, _, terminated, truncated, _ = env.step(action)
-            trajectory.append(copy.deepcopy(action))
+            recorded = copy.deepcopy(action)
+            if cursor is not None:
+                recorded['cursor'] = {'from_step': cursor_step}
+            trajectory.append(recorded)
             if terminated or truncated or 'records' not in obs:
                 raise ValueError('cannot inspect fixture')
             tables[name].extend(obs['records'])
             cursor = obs['next_cursor']
+            cursor_step = len(trajectory) - 1
             if cursor is None:
                 break
         if budget_exhausted:

@@ -20,7 +20,8 @@ python -m pytest -q
 - `ledgergym/episode_io.py`: сохранение шести публичных файлов и отдельных truth/provenance с воспроизводимым содержимым; разделение каталогов не защищает данные от недоверенного процесса.
 - `ledgergym/generator.py` и `ledgergym/compound_world.py`: единый конфиг для четырёх типов и двух небольших связанных примеров с независимыми переключателями дефектов.
 - `ledgergym/fixture_dataset.py`: воспроизводимое создание 10 train и 10 dev **учебных фикстур**, а не конкурсного benchmark.
-- `ledgergym/env.py`: пять действий и локальные ограничения бюджета, без безопасной изоляции процессов.
+- `ledgergym/env.py`, `runtime.py`: генерация эпизода через reset(seed, config), пять действий и локальные ограничения бюджета, без безопасной изоляции процессов.
+- `ledgergym/replay.py`: повтор переносимых траекторий с получением новых курсоров из ответов среды.
 - `ledgergym/score.py`: максимальное evidence-aware сопоставление 1:1, метрики, награда и проверка структуры submit.
 - `docs/INTERFACES.md`: **неутверждённые** интерфейсные решения и нерешённые вопросы.
 - `docs/STATUS.md`: оставшаяся работа и ограничения.
@@ -69,3 +70,15 @@ python -m ledgergym.isolated_runner /tmp/ledgergym-isolated-demo examples/duplic
 ```
 
 Каталог примера должен ещё не существовать. В контейнер монтируется только скрипт агента; обмен выполняется JSON-строками через stdin/stdout, оценщик остаётся на хосте. Настройки включают `--network none`, read-only root, непривилегированного пользователя, удаление capabilities, лимиты ресурсов и проверку удаления контейнера. Доверенная граница включает Docker daemon и ядро хоста. Этот механизм экспериментальный, не проходит автоматически в окружениях без Docker или нужного образа и требует независимого security review. Python-агенту доступны библиотеки стандартного образа, дополнительные зависимости и файлы не монтируются.
+
+## Генерация и повтор локального эпизода
+
+```python
+from ledgergym.env import LedgerSandbox
+
+env = LedgerSandbox()
+observation, info = env.reset(seed=42, config={"scenario": "duplicate_invoice", "fault": True})
+page, reward, terminated, truncated, info = env.step({"action": "list_records", "table": "invoices"})
+```
+
+Для сохранённых действий baseline: `replay_actions(env, actions, seed=42, config=config)` из `ledgergym.replay`. Используйте тот же seed/config, что и при построении исходного эпизода. Ссылки вида `cursor={"from_step":N}` разрешает адаптер replay; непосредственный step принимает только строковый курсор текущего reset. Seed/config не сохраняются в агентской траектории. Режим `LedgerSandbox(public, evaluator)` для загруженного эпизода допускает только `reset()` без параметров генерации. Полный контракт и миграция: `docs/INTERFACES.md`, версия 0.3.

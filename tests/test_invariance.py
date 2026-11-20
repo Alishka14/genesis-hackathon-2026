@@ -5,6 +5,8 @@ from ledgergym.world import make_episode, validate_episode
 from ledgergym.payment_world import make_payment_episode, validate_payment_episode
 from ledgergym.fx_world import make_fx_episode, validate_fx_episode
 from ledgergym.period_world import make_period_episode, validate_period_episode
+from ledgergym.generator import generate_episode
+from ledgergym.compound_world import validate_compound
 
 
 def remap(value, mapping):
@@ -20,6 +22,8 @@ def remap(value, mapping):
     (lambda: make_payment_episode(11, 'partial'), validate_payment_episode),
     (lambda: make_fx_episode(11, 'wrong_rate'), validate_fx_episode),
     (lambda: make_period_episode(11, True), validate_period_episode),
+    (lambda: generate_episode(11, {'scenario': 'fx_allocation'}), validate_compound),
+    (lambda: generate_episode(11, {'scenario': 'duplicate_allocation'}), validate_compound),
 ])
 def test_preflight_survives_bijective_id_remap_and_row_shuffle(factory, validator):
     public, truth = factory()

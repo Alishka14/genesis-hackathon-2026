@@ -6,6 +6,7 @@ from .world import validate_episode
 from .payment_world import validate_payment_episode
 from .fx_world import validate_fx_episode
 from .period_world import validate_period_episode
+from .compound_world import validate_compound
 
 
 def _json_text(value):
@@ -14,6 +15,8 @@ def _json_text(value):
 
 def _validator(public):
     tables = public['tables']
+    if 'allocation_rule' in public['policy'] and (tables['fx'] or len(tables['invoices']) == 2):
+        return validate_compound
     if tables['fx']:
         return validate_fx_episode
     if any('reporting_period' in row for row in tables['ledger']):

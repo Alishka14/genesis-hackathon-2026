@@ -109,7 +109,11 @@ def run_baseline(public, truth, policy, seed=0):
             break
     invoices = tables['invoices']
     if policy == 'reconciliation':
-        findings = _reconcile(tables, initial['policy'])
+        if initial['policy'].get('accounting_model') == 'accrual_company_v1':
+            from .company_checks import inspect_company
+            findings = inspect_company({'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables})
+        else:
+            findings = _reconcile(tables, initial['policy'])
     elif policy == 'mark_all':
         findings = [_finding(kind, [i['invoice_id']], i['total_minor'], i['currency'], [i['doc_id']]) for i in invoices for kind in ('duplicate_invoice', 'payment_allocation', 'fx_rate_or_date', 'reporting_period')][:30]
     elif invoices:

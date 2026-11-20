@@ -12,6 +12,9 @@ def generate_episode(seed, config):
     scenario = config.get('scenario')
     if not isinstance(scenario, str):
         raise ValueError('invalid scenario')
+    if scenario == 'company':
+        from .company_world import build_company
+        return build_company(seed, {key: value for key, value in config.items() if key != 'scenario'})[:2]
     single = {'duplicate_invoice', 'payment_allocation', 'fx_rate_or_date', 'reporting_period'}
     compound = {'fx_allocation', 'duplicate_allocation'}
     if scenario in single:

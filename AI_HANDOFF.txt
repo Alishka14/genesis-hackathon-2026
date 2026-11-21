@@ -22,3 +22,11 @@ Release gate remains open. Role 4 owns normalization, semantic validation,
 evidence consistency and tie-breaking. Role 2 owns independent data validation.
 After owner fixes, run official reward and financial paired protocols and record
 per-case results. Captain review is required before merging or submission.
+
+Role 4 independent verification | 22 November 2026
+
+Base main 3b25dc0ac298c809d06bcca289bc15c920d9d469. Main contains the
+matcher corrections referenced as outstanding in the historical entry above.
+See docs/verification/ROLE4_REDTEAM_REPORT.md for the bounded exhaustive oracle,
+synthetic cross-interface checks and actual results. The review branch adds
+verification only. Official hidden cases and host execution remain outstanding.

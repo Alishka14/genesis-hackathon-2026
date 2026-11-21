@@ -19,7 +19,8 @@ ledgergym-verify = "ledgergym.verification:main"
 ledgergym-isolated = "ledgergym.isolated_runner:main"
 
 [tool.setuptools]
-packages = ["ledgergym"]
+packages = ["ledgergym", "examples"]
+py-modules = ["judge_adapter"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

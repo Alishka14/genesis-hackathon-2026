@@ -6,7 +6,7 @@
 
 | Пункты нового плана | Фактический статус |
 | --- | --- |
-| LG-000–002 | Правила/план/контракт прочитаны, технический scope разрешён. INTERFACES v0.4 существует; утверждение допусков, extras и расширений по оригинальному кейсу ещё открыто |
+| LG-000–002 | Правила/план/контракт прочитаны, технический scope разрешён. INTERFACES v0.4 и добавленный canonical judge Role 3 существуют; утверждение допусков, extras и расширений по оригинальному кейсу ещё открыто |
 | LG-003 | Добавлен SCENARIO_CATALOG с разделением текущих сценариев, функций только внутреннего matching и отсутствующих возможностей |
 | LG-004 | Добавлен MATCHING_SPEC: распределение денег и 1:1 matcher описаны отдельно |
 | LG-005, LG-010 | Реальная плоская структура модулей, schema_version, Python 3.11, wheel/sdist, fixed wheels и офлайн-проверка реализованы в PR #15 |
@@ -15,7 +15,7 @@
 | LG-013–017 | Четыре injectors, private truth/provenance, preflight, reset/step, 1:1 matcher/reward и сквозные проверки существуют |
 | LG-020–021 | FX/период и два compound реализованы в ограниченной модели |
 | LG-022 | Частично: clean, одинаковые суммы, частичные платежи есть; split/overpayment/refund hard negatives ещё не генерируются; валюты/timezone фиксированы моделью |
-| LG-023–025 | Decimal calculator, лимиты и негативные проверки есть; 7 Docker-тестов выполнены. Независимый аудит, инфраструктура жюри и полнота атак не подтверждены |
+| LG-023–025 | Decimal calculator, лимиты и негативные проверки есть; Native и canonical Docker-тесты входят в объединённую проверку. Независимый аудит, инфраструктура жюри и полнота атак не подтверждены |
 | LG-026 | Есть ручные и генераторные rename/order tests; полного заявленного robustness benchmark нет |
 | LG-027 | Четыре baseline существуют; reconciliation использует общий checker, это не независимая оценка качества |
 | LG-028 | 10+10 и 60 replay есть. Новый events.jsonl сохраняет reset/action/observation/reward/flags; прежний actions-v1 совместим. Журнал доверенного baseline replay, не live Docker stdout; EVENT_RECORDING.md |
@@ -28,4 +28,4 @@
 
 Ни Gate 0 целиком, ни Gate 2/4 не объявлены PASS: есть неутверждённые схемы и отсутствующие обязательные части. Локальная работоспособность Gate 1 подтверждена тестами, но не заменяет согласование и независимый review.
 
-Recorder и единая offline verification command реализованы; отчёт PLAN2_RECORDER_REPORT.md. Следующие технические изменения: минимальные CAB пары, design note и согласованное расширение financial model для дополнительных hard negatives. Возвраты/FX allocation не включать до фиксации правил. Отчёт текущего этапа: `PLAN2_PAYMENT_MATCHING_REPORT.md`.
+Из базовой ветки интегрированы изменения canonical judge/restricted runner (PR #18/#19); owner-blockers см. P0_INTEGRATION_GATE.md. Recorder и единая offline verification command реализованы; отчёт PLAN2_RECORDER_REPORT.md. Следующие технические изменения: минимальные CAB пары, design note и согласованное расширение financial model для дополнительных hard negatives. Возвраты/FX allocation не включать до фиксации правил. Отчёт текущего этапа: `PLAN2_PAYMENT_MATCHING_REPORT.md`.

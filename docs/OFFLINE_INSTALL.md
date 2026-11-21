@@ -30,7 +30,7 @@ python3.11 -m venv .venv
 
 ```sh
 docker pull python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5
-.venv/bin/python -I -m pytest tests/test_isolated_runner.py -q -rs
+.venv/bin/python -I -m pytest tests/test_isolated_runner.py tests/test_role3_runtime.py -q -rs
 ```
 
 Runner использует `--pull=never` и `--network none`; оценщик остаётся на хосте. Эти проверки покрывают конкретные попытки доступа к файлу хоста/сети, read-only root, отсутствие Docker socket, тайм-аут, ограничение входа, скрытый feedback и чтение большого эпизода. Они не заменяют независимый аудит безопасности и проверку инфраструктуры жюри.
@@ -61,3 +61,13 @@ Runner использует `--pull=never` и `--network none`; оценщик �
 Коды завершения: **0 PASS**, **1 FAIL**, **2 PARTIAL**. Любой пропуск теста (включая отсутствие Docker-образа) даёт PARTIAL. Ошибки тестов не скрываются успешной генерацией. PASS относится только к выполненным локальным проверкам, не ко всем конкурсным требованиям. `--tests PATH` предназначен для диагностики и отмечает `test_scope: custom`; такой отчёт не подтверждает прохождение полного набора. Команда не является сетевой изоляцией хоста; для проверки при физически отключённой сети нужен внешний контроль.
 
 Формат журнала и ограничения: `docs/EVENT_RECORDING.md`. Весь каталог результата содержит закрытые для агента эталоны разработки; его нельзя монтировать в недоверенный агент.
+
+В поставку включён добавленный базовой веткой canonical judge (`judge_adapter.py`) и его отдельный FlightRecorder. Native events-v1 и canonical judge traces имеют разные контракты; подробности в EVENT_RECORDING.md. Полная команда проверяет оба интерфейса, но не закрывает финансовые owner-blockers из P0_INTEGRATION_GATE.md.
+
+Если Docker Desktop сохранил образ только под digest и `image inspect` полного имени tag@digest не находит его, можно назначить локальный tag уже проверенному digest без загрузки:
+
+```sh
+docker tag python@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5 python:3.11.11-slim-bookworm
+```
+
+Runner по-прежнему требует точный digest и использует `--pull=never`.

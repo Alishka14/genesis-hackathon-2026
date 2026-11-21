@@ -4,7 +4,7 @@
 
 ## Текущий этап: журнал событий и единая проверка
 
-Ветка `agent/integration/plan2-recorder` продолжает draft PR #16, версия 0.1.0.dev17. Добавлен канонический `events.jsonl` с публичными ответами среды и сохранён прежний actions-v1. `ledgergym-verify` выполняет тесты, создаёт 10+10, проверяет четыре baseline / 60 replay и соответствие событий действиям. Пропуски дают PARTIAL, ошибки FAIL; результаты сохраняются в verification.json. Контракт: `EVENT_RECORDING.md`, фактические проверки: `PLAN2_RECORDER_REPORT.md`.
+Ветка `agent/integration/plan2-recorder` продолжает #16 с вошедшими в базу PR #18/#19, версия 0.1.0.dev17. Изменения canonical judge и restricted runner сохранены; owner-blockers описаны в P0_INTEGRATION_GATE.md. Добавлен канонический `events.jsonl` с публичными ответами среды и сохранён прежний actions-v1. `ledgergym-verify` выполняет тесты, создаёт 10+10, проверяет четыре baseline / 60 replay и соответствие событий действиям. Пропуски дают PARTIAL, ошибки FAIL; результаты сохраняются в verification.json. Контракт: `EVENT_RECORDING.md`, фактические проверки: `PLAN2_RECORDER_REPORT.md`.
 
 Следующие незакрытые P0: минимальные CAB-пары, design note, проверка первичных требований и полный отчёт ресурсов. Дополнительные финансовые hard negatives требуют согласованной модели; конкурсная отправка ещё не готова.
 

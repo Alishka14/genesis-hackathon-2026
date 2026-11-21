@@ -149,8 +149,16 @@ def _dataset(root: Path):
     root = Path(root).expanduser().resolve(strict=True)
     if not root.is_dir():
         raise ValueError("dataset must be a directory")
-    index = json.loads((root / "index.json").read_text(encoding="utf-8"))
-    summary = json.loads((root / "evaluation" / "summary.json").read_text(encoding="utf-8"))
+    index_file = root / "index.json"
+    report_folder = root / "evaluation"
+    summary_file = report_folder / "summary.json"
+    for path in (index_file, report_folder, summary_file):
+        if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root):
+            raise OSError("linked or escaped development report")
+    if index_file.stat().st_size > 512 * 1024 or summary_file.stat().st_size > 2 * 1024 * 1024:
+        raise OSError("development report too large")
+    index = json.loads(index_file.read_text(encoding="utf-8"))
+    summary = json.loads(summary_file.read_text(encoding="utf-8"))
     if not isinstance(index, dict) or index.get("kind") not in KINDS:
         raise ValueError("expected a supported synthetic company dataset")
     if not isinstance(summary, dict) or summary.get("kind") != index["kind"]:
@@ -260,6 +268,8 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                     # ONLY this episode's public/ folder.
                     folder = _public_folder(root, split, episode)
                     public = load_public_episode(folder)
+                    if public["manifest"].get("episode_id") != episodes[split][episode]["episode_id"]:
+                        raise ValueError("episode manifest mismatch")
                     rows = public["tables"][table]
                     start = page * 50
                     self._json(200, {

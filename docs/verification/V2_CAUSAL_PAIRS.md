@@ -14,7 +14,7 @@ All clean/fault variants have identical manifest, policy, opaque IDs, base ledge
 
 | Mode | Controlled public delta | Ground truth and evidence |
 | --- | --- | --- |
-| `duplicate_invoice` | Second invoice's service reference is made equal to the first despite the same vendor and face value | Both invoices + two related payable postings |
+| `duplicate_invoice` | One economic service identity is duplicated on the second invoice; its service reference may appear across multiple line items | Both invoices + two related payable postings |
 | `payment_allocation` | One applied split `invoice_refs` allocation reduced by one minor unit against the vendor's documented `allocation_basis` | Payment document containing **both** basis and applied allocations + both invoice documents + payable posting |
 | `duplicate_allocation` | Both changes above, to a shared split-related pair of invoices | Two distinct truth issues, with separate evidence chains, tied through one split payment |
 
@@ -28,7 +28,7 @@ All clean/fault variants have identical manifest, policy, opaque IDs, base ledge
 
 `ledgergym.settlement_faults_v2.inspect_settlement_faults(public)` derives findings from public documents without importing a generator or reading private truth:
 
-1. Detect duplicate service obligations by vendor, service reference, currency and amount.
+1. Detect duplicate service obligations by vendor, service reference, currency and amount. The service reference is a single economic identity repeated across all components of one invoice, so several line-item fields may need to change together as one semantic intervention.
 2. Detect single-invoice short allocation by comparing a documented split basis with the actual applied `invoice_refs`.
 3. Reverse **only** the recognized discrepancies in a private in-memory copy and call the existing independent v2 validator to check every other financial invariant (cash/AP balance, invoice lines, exchange rates, refund original link, period, capital, evidence accessibility).
 4. Reject unexpected corruptions, ambiguous multi-invoice differences and unsupported financial phenomena rather than inventing ground truth.
@@ -62,10 +62,10 @@ The standard `ledgergym.company_dataset` opt-in mode also now gives **one clean 
 
 ## Tests and known limitations
 
-    python -m pytest -q tests/test_v2_causal_pairs.py tests/test_v2_pair_dataset.py
+    python -m pytest -q tests/test_v2_causal_pairs.py tests/test_v2_pair_dataset.py tests/test_v2_independent_truth.py
     python -m pytest -q tests/test_settlement_dataset_benchmark.py
     python -m pytest -q -rs -p no:cacheprovider
 
-Tests cover same-seed clean/fault reconstruction of every changed field, three modes, three seeds, three dataset sizes, evidence accessibility, truth consistency, canonical judge accepted findings, deterministic replay/scoring, clean false allegations, private pair-index separation, all four baseline policies and six paired train/dev controls.
+Tests cover same-seed clean/fault reconstruction of every changed field, three modes, multiple seeds, three dataset sizes, evidence accessibility, truth consistency (including a **separate public-document test oracle** in `tests/test_v2_independent_truth.py`), canonical judge accepted findings, deterministic replay/scoring, clean false allegations, private pair-index separation, all four baseline policies and six paired train/dev controls.
 
 **Still open:** production review of `allocation_basis` public contract, independent finance expert review of the synthetic policy and documents, v2 FX/cutoff faults, expanded counterfactual permutations, hidden organizer compliance checks and actual AI/LLM policy evaluation. No code is automatically merged or submitted.

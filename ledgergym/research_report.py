@@ -17,8 +17,9 @@ from .baselines import run_baseline
 from .episode_io import load_public_episode
 from .research_diagnostics import (
     EQT, FP_TYPES, STANDARD_VALID, SUSPICIOUS_BUT_VALID,
-    evidence_taxonomy, false_accusation_analysis,
+    false_accusation_analysis,
 )
+from .policy_evidence import evidence_taxonomy_from_public
 from .research_robustness import score_invariance_matrix
 from .score import accessible_evidence_ids, evaluate
 
@@ -159,7 +160,7 @@ def analyse_development_dataset(dataset, output, *, trials=8):
                 official = evaluate(truth["issues"], findings, public_ids, steps)
                 if official != result["score"]:
                     raise ValueError("baseline official score changed")
-                eqt = evidence_taxonomy(truth["issues"], findings, public_ids)
+                eqt = evidence_taxonomy_from_public(truth["issues"], findings, public_ids, public)
                 faa = false_accusation_analysis(
                     truth["issues"], findings, public_ids,
                     case_annotations=annotations, inspection_steps=steps,
@@ -200,7 +201,7 @@ def analyse_development_dataset(dataset, output, *, trials=8):
             "Only synthetic development episodes; no independent holdout.",
             "Reconciliation shares the public model checks with the generator.",
             "Clean-case FPR counts one opportunity per entirely clean company.",
-            "EQT temporal/contradiction tags are not inferred without extra verified annotations.",
+            "EQT derives only explicitly verifiable v1 payment FX-date and payment-to-ledger contradictions; other cases remain unannotated.",
             "Invariance probes cover the scorer, not a learned policy.",
         ],
     }

@@ -27,10 +27,10 @@ def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives
              {'faults': {kind: 2 for kind in ('duplicate_invoice', 'payment_allocation', 'fx_rate_or_date', 'reporting_period')},
               'compounds': {'fx_allocation': 1, 'duplicate_allocation': 1}}, {}]
     if include_settlement_hard_negatives:
-        # Keep one legacy clean case, four singleton families, both compound
-        # families and the twelve-issue case. v2 remains clean-only.
+        # Keep v1 clean, four singleton families, two compounds, max-12 stress.
+        # v2 has one clean AND one faulty control per split, same public model.
         plans[7] = {'scenario': 'company_settlements'}
-        plans[9] = {'scenario': 'company_settlements'}
+        plans[9] = {'scenario': 'company_settlement_fault', 'fault': 'payment_allocation'}
     sizes = [(200, 20), (320, 40), (460, 60), (620, 80), (800, 80),
              (980, 100), (1200, 120), (1450, 140), (1700, 180), (2000, 200)]
     index = {
@@ -43,6 +43,9 @@ def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives
     for split in ('train', 'dev'):
         (root / split).mkdir(mode=0o700)
         shuffled_plans, shuffled_sizes = list(plans), list(sizes)
+        if include_settlement_hard_negatives and split == 'dev':
+            shuffled_plans[9] = {'scenario': 'company_settlement_fault',
+                                 'fault': 'duplicate_invoice'}
         rng.shuffle(shuffled_plans)
         rng.shuffle(shuffled_sizes)
         for number, (plan, size) in enumerate(zip(shuffled_plans, shuffled_sizes)):
@@ -58,6 +61,11 @@ def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives
                 from .company_world_v2 import build_settlement_company
                 public, truth, provenance = build_settlement_company(
                     episode_seed, {'postings': postings, 'documents': documents})
+            elif plan.get('scenario') == 'company_settlement_fault':
+                from .settlement_faults_v2 import build_settlement_fault_episode
+                public, truth, provenance = build_settlement_fault_episode(
+                    episode_seed, {'postings': postings, 'documents': documents,
+                                   'fault': plan['fault']})
             else:
                 public, truth, provenance = build_company(
                     episode_seed, {'postings': postings, 'documents': documents, **plan})
@@ -78,7 +86,7 @@ def main():
     parser.add_argument('--seed', type=int, default=2026, help='trusted dataset seed, never written into public index')
     parser.add_argument('--evaluate', action='store_true', help='run four trusted baselines and verify portable trajectories offline')
     parser.add_argument('--settlement-hard-negatives', action='store_true',
-                        help='opt in to two clean split/refund companies per split while preserving 10+10')
+                        help='opt in to one clean and one faulted v2 company per split; preserve 10+10')
     args = parser.parse_args()
     index = create_company_dataset(args.output, seed=args.seed,
         include_settlement_hard_negatives=args.settlement_hard_negatives)

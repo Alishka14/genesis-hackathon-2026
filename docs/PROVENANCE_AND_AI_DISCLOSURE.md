@@ -121,3 +121,20 @@ Codex полностью прочитал предоставленный пол�
 OpenAI Codex was used for repository recovery, the canonical judge transport, issued deterministic cursors, restricted policy runner hardening, independent hand-authored environment fixtures, replay/trajectory helpers, tests, CI and documentation. The user explicitly authorized all three Role 3 phases and a reviewable PR without merging. The existing financial generator and matcher methodology were delegated without modifying their modules. No human review is claimed until recorded.
 
 Production additions use Python standard-library modules. Test-only dependencies are pinned in requirements-role3-test.txt and are not vendored into product source. Python 3.11.9 portable interpreter from python.org was used for compatibility verification, alongside bundled Python3.12.14. Linux CI actions are pinned to resolved official actions/checkout and actions/setup-python commits. Docker uses the existing pinned Python image and never pulls during evaluation. Actual version/results and isolation limitations are recorded in the Role3 phase reports; no trained-model improvement or competition score is claimed.
+
+
+## Релизные изменения и интерфейс, 21 ноября 2026 года (фактическая запись)
+
+Следующие изменения созданы с помощью **ChatGPT (GPT-6)** и подключённого GitHub-инструмента по прямым поручениям технического участника. Это следует раскрыть в README и конкурсной презентации. Код, тесты и документация должны пройти человеческую проверку; использование ИИ само по себе не подтверждает корректность финансовой реализации.
+
+| Модули и этапы | Выполненная ИИ-работа | Фактическая человеческая проверка |
+| --- | --- | --- |
+| PR №28, `scripts/verify_integration.py`, `tests/test_integration_gate.py` | Создание интеграционного проверяющего сценария и корректировка ошибочной проверки приватных путей | Участник запустил на macOS/Python 3.14 полный gate: `success=true`, 20 эпизодов, 60 replay, шесть причинных пар |
+| PR №28, `tests/test_role3_runtime.py` | Исправление переносимости проверок изоляции на Docker Desktop | Участник повторно запустил Docker-тесты: **22 passed / 0 failed / 0 skipped** |
+| PR №30, офлайн-поставка и новые тесты | Сборка hash-locked wheels, проверка manifest и установленного пакета | Участник проверил на macOS/Python 3.11.18: 9/9 стадий, 45/45 тестов, 145 SHA-256 проверенных файлов; Git commit подтвердили отдельно |
+| PR №31, сценарий видео и handoff | Черновики сценария демонстрации, списка материалов и границ результатов | Участник запустил оба CLI-примера: один синтетический duplicate TP=1, отдельный clean exact replay |
+| PR №32, `fixture_evaluation.py`, `dashboard.py`, `dashboard_static/`, `profile_local_resources.py` и тесты | Дополнительный полный baseline event recorder, локальный HTML/CSS/JS dashboard, replay inspector, ресурсный профайлер и безопасность read-only API | **Пока не подтверждено локальными тестами текущего PR**; запись об успешной проверке появится только после реального прогона |
+
+Код LedgerGym и фронтенд не содержат скопированного стороннего визуального шаблона в указанных изменениях; CSS/HTML/JS сгенерированы под этот проект. Использованные внешние Python build/test wheels, версии и сохранённые лицензии перечислены в `THIRD_PARTY_NOTICES.md`, `requirements-build.lock`, `requirements-dev.lock` и `third_party_licenses/`. Установка Python и Docker-образа отдельно от пакета не означает включение их исходного кода в пакет LedgerGym.
+
+Имена людей, выбранная лицензия **собственного** исходного кода, официальное принятие изменений капитаном и финальный список участников остаются открытыми до ручной проверки; не придумывать их. Эта запись не является заявлением, что весь проект разрабатывался исключительно человеком или исключительно ИИ.

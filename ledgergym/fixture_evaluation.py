@@ -6,6 +6,7 @@ import re
 from .baselines import run_baseline
 from .episode_io import load_public_episode
 from .env import LedgerSandbox
+from .event_recorder import public_events
 from .replay import replay_actions
 from .score import evaluate
 
@@ -24,6 +25,7 @@ def evaluate_fixture_dataset(dataset, output):
     totals = empty_totals()
     splits = {split: empty_totals() for split in ('train', 'dev')}
     trajectories = []
+    events = []
     seen_ids = set()
     for split in ('train', 'dev'):
         entries = index[split]
@@ -61,11 +63,14 @@ def evaluate_fixture_dataset(dataset, output):
                     accumulator['inspection_steps_sum'] += inspection_steps
                 if result['trajectory'] is not None:
                     env = LedgerSandbox(public, lambda answers, steps: evaluate(truth['issues'], answers, public_ids, steps))
-                    replayed = replay_actions(env, result['trajectory'])['steps'][-1]
+                    replay = replay_actions(env, result['trajectory'])
+                    replayed = replay['steps'][-1]
                     if not replayed[2] or replayed[3] or replayed[4].get('score') != score:
                         raise ValueError('trajectory replay did not reproduce the score')
                     trajectories.append({'episode_id': entry['episode_id'], 'split': split, 'policy': name,
                                          'trajectory_format': 'ledgergym-actions-v1', 'actions': result['trajectory']})
+                    events.extend(dict(event, split=split, policy=name)
+                                  for event in public_events(result['trajectory'], replay))
     for group in (totals, *splits.values()):
         for value in group.values():
             count = value['episodes']
@@ -76,6 +81,9 @@ def evaluate_fixture_dataset(dataset, output):
                'replay': {'trajectories': len(trajectories), 'score_matches': len(trajectories)}}
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
+    with (output / 'events.jsonl').open('w', encoding='utf-8') as stream:
+        for event in events:
+            stream.write(json.dumps(event, sort_keys=True, separators=(',', ':')) + '\n')
     return summary
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgergym"
-version = "0.1.0.dev16"
+version = "0.1.0.dev17"
 description = "Synthetic financial audit environment for local research"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ license-files = []
 ledgergym = "ledgergym.__main__:main"
 ledgergym-company = "ledgergym.company_dataset:main"
 ledgergym-evaluate = "ledgergym.fixture_evaluation:main"
+ledgergym-verify = "ledgergym.verification:main"
 ledgergym-isolated = "ledgergym.isolated_runner:main"
 
 [tool.setuptools]

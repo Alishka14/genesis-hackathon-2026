@@ -39,18 +39,7 @@ def evaluate(issues, findings, public_ids, inspection_steps):
                 and any(set(allowed) <= evidence for allowed in issue["allowed_evidence_sets"]))
 
     edges = [[j for j, issue in enumerate(issues) if matches(finding, issue)] for finding in findings]
-    paired = {}
-    def augment(i, seen):
-        for j in edges[i]:
-            if j in seen:
-                continue
-            seen.add(j)
-            if j not in paired or augment(paired[j], seen):
-                paired[j] = i
-                return True
-        return False
-    for i in range(len(findings)):
-        augment(i, set())
+    paired = _stable_matching(edges, issues)
     tp = len(paired)
     fp, fn = len(findings) - tp, len(issues) - tp
     precision = tp / (tp + fp) if tp + fp else 0.0
@@ -58,3 +47,46 @@ def evaluate(issues, findings, public_ids, inspection_steps):
     f1 = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 1.0
     reward = max(-1.0, min(1.0, 2 * f1 - 1 - 0.002 * inspection_steps))
     return {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "f1": f1, "reward": reward}
+
+
+def _stable_matching(edges, issues):
+    """Maximum cardinality, then minimum finding-index vector in issue-ID order.
+
+    Unmatched is ordered after every finding. Missing/non-string/duplicate
+    issue IDs fall back to source position; valid unique IDs are order-stable.
+    Each chosen pair is checked for feasibility against the remaining graph.
+    This mapping stays trusted-side and is not added to the score response.
+    """
+    order = sorted(range(len(issues)), key=lambda j: (
+        issues[j].get('issue_id') if isinstance(issues[j].get('issue_id'), str) else '', j))
+
+    def maximum(remaining, available):
+        allowed = set(remaining)
+        paired = {}
+        def augment(i, seen):
+            for j in edges[i]:
+                if j not in allowed or j in seen:
+                    continue
+                seen.add(j)
+                if j not in paired or augment(paired[j], seen):
+                    paired[j] = i
+                    return True
+            return False
+        for i in sorted(available):
+            augment(i, set())
+        return len(paired)
+
+    available = set(range(len(edges)))
+    target = maximum(order, available)
+    paired = {}
+    for position, j in enumerate(order):
+        if not target:
+            break
+        remaining = order[position + 1:]
+        for i in sorted(available):
+            if j in edges[i] and 1 + maximum(remaining, available - {i}) == target:
+                paired[j] = i
+                available.remove(i)
+                target -= 1
+                break
+    return paired

@@ -2,6 +2,7 @@
 import secrets
 from .generator import generate_episode
 from .score import evaluate
+from .record_ids import addressable_ids
 
 
 def create_episode(seed=None, config=None):
@@ -15,10 +16,7 @@ def create_episode(seed=None, config=None):
     if config is None:
         config = {'scenario': 'duplicate_invoice', 'fault': True}
     public, truth = generate_episode(seed, config)
-    public_ids = {
-        value for rows in public['tables'].values() for row in rows
-        for key, value in row.items() if key.endswith('_id') and isinstance(value, str)
-    }
+    public_ids = addressable_ids(public)
 
     def evaluator(findings, steps):
         return evaluate(truth['issues'], findings, public_ids, steps)

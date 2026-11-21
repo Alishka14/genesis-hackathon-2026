@@ -63,8 +63,10 @@ def test_public_export_no_secret_and_hashes(tmp_path):
     assert result['trajectories'] == 60
     assert result['contest_certified'] is False
     assert len(list(output.rglob('public'))) == 20
+    # macOS temporary paths often start with /private/var; inspect only
+    # paths relative to the exported artifact, not the host filesystem.
     for rel in output.rglob('*'):
-        assert 'private' not in rel.parts
+        assert 'private' not in rel.relative_to(output).parts
     assert not list(output.rglob('truth.json'))
     assert not list(output.rglob('provenance.json'))
     assert len(list(output.rglob('manifest.json'))) == 20

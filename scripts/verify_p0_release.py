@@ -22,7 +22,8 @@ from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCKER_TESTS = ("tests/test_isolated_runner.py", "tests/test_role3_runtime.py")
-FRONTEND_TESTS = ("tests/test_dashboard_and_full_events.py", "tests/test_resource_profile.py")
+FRONTEND_TESTS = ("tests/test_dashboard_and_full_events.py", "tests/test_resource_profile.py",
+                  "tests/test_p0_release_gate.py")
 REQUIRED_OFFLINE_STAGES = {
     "build_dependencies", "build_bundle", "verify_manifest",
     "installed_runtime", "installed_dashboard_assets", "installed_dev_dependencies",

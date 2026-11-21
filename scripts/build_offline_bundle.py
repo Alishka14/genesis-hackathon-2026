@@ -42,6 +42,12 @@ def main():
             expected[(name.lower().replace('-', '_'), release)] = digest
     # Do not package symlinks or evaluator-only labels from an accidental
     # local development output placed under a directory copied to the bundle.
+    for filename in ('judge_adapter.py', 'pyproject.toml', 'MANIFEST.in',
+                     '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md',
+                     'requirements-build.lock', 'requirements-dev.lock'):
+        member = root / filename
+        if not member.is_file() or member.is_symlink():
+            parser.error(f'missing or linked project root file: {filename}')
     for dirname in ('ledgergym', 'tests', 'examples', 'docs', 'scripts', 'third_party_licenses'):
         for member in (root / dirname).rglob('*'):
             relative = member.relative_to(root).as_posix()

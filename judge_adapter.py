@@ -9,9 +9,19 @@ from ledgergym.episode_io import export_episode
 
 def generate_episode(seed, config, output_dir):
     export_options = {"seed": seed}
-    if isinstance(config, dict) and config.get("scenario") == "company":
-        from ledgergym.company_world import build_company
-        public, truth, provenance = build_company(
+    if isinstance(config, dict) and config.get("scenario") in (
+        "company", "company_settlements", "company_settlement_fault"
+    ):
+        if config["scenario"] == "company_settlements":
+            from ledgergym.company_world_v2 import build_settlement_company
+            factory = build_settlement_company
+        elif config["scenario"] == "company_settlement_fault":
+            from ledgergym.settlement_faults_v2 import build_settlement_fault_episode
+            factory = build_settlement_fault_episode
+        else:
+            from ledgergym.company_world import build_company
+            factory = build_company
+        public, truth, provenance = factory(
             seed, {key: value for key, value in config.items() if key != "scenario"}
         )
         export_options["provenance"] = provenance

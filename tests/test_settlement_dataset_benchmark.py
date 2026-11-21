@@ -143,8 +143,10 @@ def test_reconciliation_baseline_rejects_corrupt_clean_v2_instead_of_hiding_faul
     broken = copy.deepcopy(public)
     split = next(p for p in broken['tables']['payments']
                  if p['kind'] == 'payment' and len(p['invoice_refs']) == 2)
-    split['invoice_refs'][0]['amount_minor'] -= 1
-    with pytest.raises(ValueError, match='payment allocation'):
+    # An over-allocation is NOT in our deliberately supported fault family.
+    # Reject contradictory public data rather than silently accepting it.
+    split['invoice_refs'][0]['amount_minor'] += 1
+    with pytest.raises(ValueError, match='unsupported multi-invoice'):
         run_baseline(broken, truth, 'reconciliation')
 
 

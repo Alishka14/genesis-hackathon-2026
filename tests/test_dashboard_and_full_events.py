@@ -83,6 +83,19 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
             assert data["total"] >= len(data["records"])
             for secret in (b'"truth"', b'"issues"', b'"provenance"', b'"private_pair_index"'):
                 assert secret not in body
+            replay_url = ("/api/replay?split=train&episode=" + entry
+                          + "&policy=reconciliation")
+            _, replay_body, _ = get(replay_url)
+            replay = json.loads(replay_body)
+            assert replay["format"] == "full_transitions"
+            assert len(replay["steps"]) > 1
+            assert replay["steps"][0]["step"] == 1
+            assert replay["steps"][-1]["terminated"] is True
+            assert replay["steps"][-1]["action"] == "submit"
+            assert replay["steps"][-1]["reward"] is not None
+            assert all(secret not in replay_body for secret in (
+                b'"truth"', b'"provenance"', b'"private_pair_index"',
+                b'"allowed_evidence_sets"', b'"issue_id"'))
             for bad_url, expected in (
                 ("/private/truth.json", 404),
                 ("/api/records?split=train&episode=../../private&table=ledger&page=0", 400),
@@ -92,6 +105,12 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
                  + "&table=ledger&page=0&extra=1", 400),
                 ("/api/records?split=train&episode=" + entry
                  + "&table=ledger&page=1001", 400),
+                ("/api/replay?split=train&episode=" + entry
+                 + "&policy=oracle", 400),
+                ("/api/replay?split=train&episode=../../private"
+                 + "&policy=reconciliation", 400),
+                ("/api/replay?split=train&episode=" + entry
+                 + "&policy=reconciliation&secret=1", 400),
             ):
                 try:
                     get(bad_url)
@@ -103,3 +122,49 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
             server.shutdown()
             thread.join(timeout=5)
             assert not thread.is_alive()
+
+
+def test_replay_falls_back_to_legacy_action_only_dataset(tmp_path):
+    root, _ = _dataset(tmp_path)
+    (root / "evaluation" / "trajectories_full.jsonl").unlink()
+    with dashboard_server(root, port=0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            address = "http://127.0.0.1:" + str(server.server_address[1])
+            with urlopen(address + "/api/episodes", timeout=10) as response:
+                episode = json.load(response)["train"][0]["name"]
+            url = (address + "/api/replay?split=train&episode=" + episode
+                   + "&policy=reconciliation")
+            with urlopen(url, timeout=10) as response:
+                replay = json.load(response)
+            assert replay["format"] == "actions_only"
+            assert len(replay["steps"]) > 1
+            assert replay["steps"][-1]["action"] == "submit"
+            assert all(step["reward"] is None for step in replay["steps"])
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_dashboard_rejects_symlink_public_file(tmp_path):
+    root, _ = _dataset(tmp_path)
+    invoice = root / "train" / "episode-00" / "public" / "ledger.csv"
+    invoice.unlink()
+    invoice.symlink_to(root / "train" / "episode-00" / "private" / "truth.json")
+    with dashboard_server(root, port=0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            address = "http://127.0.0.1:" + str(server.server_address[1])
+            url = address + "/api/records?split=train&episode=episode-00&table=ledger&page=0"
+            try:
+                urlopen(url, timeout=10)
+            except HTTPError as exc:
+                assert exc.code == 500
+                assert b'"local_dataset_unavailable"' in exc.read()
+            else:
+                raise AssertionError("symlinked dataset unexpectedly served")
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)

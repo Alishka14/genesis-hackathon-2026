@@ -1,0 +1,182 @@
+"""Development environment. In-process callbacks are NOT a security boundary."""
+import ast
+import copy
+from decimal import Decimal, DecimalException, localcontext
+import operator
+import re
+import secrets
+import time
+from .score import validate_submission
+
+
+# Availability in an input mapping does not grant access to an agent.
+_RECORD_KEYS = {
+    "ledger": "row_id", "invoices": "invoice_id",
+    "payments": "payment_id", "fx": "rate_id",
+}
+_READ_FIELDS = {
+    "list_records": ({"action", "table"}, {"cursor", "limit"}),
+    "get_record": ({"action", "table", "id"}, set()),
+    "get_document": ({"action", "doc_id"}, set()),
+    "calculator": ({"action", "expression"}, set()),
+}
+
+
+def _record_identifier(table, row):
+    if table == "fx" and not row.get("rate_id"):
+        return ":".join(row[key] for key in ("date", "source_currency", "target_currency"))
+    return row.get(_RECORD_KEYS[table])
+
+
+def calculate(expression):
+    if not isinstance(expression, str) or len(expression) > 128:
+        raise ValueError("invalid expression")
+    tree = ast.parse(expression, mode="eval")
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+    if sum(1 for _ in ast.walk(tree)) > 50:
+        raise ValueError("too complex")
+    def walk(node):
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            literal = ast.get_source_segment(expression, node)
+            if not literal or not re.fullmatch(r"(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)", literal):
+                raise ValueError("invalid number")
+            value = Decimal(literal)
+            if abs(value) > Decimal("1e18"):
+                raise ValueError("out of range")
+            return value
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            value = walk(node.operand)
+            return -value if isinstance(node.op, ast.USub) else value
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            value = ops[type(node.op)](walk(node.left), walk(node.right))
+            if not value.is_finite() or abs(value) > Decimal('1e30'):
+                raise ValueError("out of range")
+            return value
+        raise ValueError("unsupported expression")
+    with localcontext() as ctx:
+        ctx.prec = 28
+        return str(walk(tree.body))
+
+
+class LedgerSandbox:
+    def __init__(self, public=None, evaluator=None, closed=False, timeout=60, *, episode_factory=None, cursor_factory=None):
+        if (public is None) != (evaluator is None):
+            raise ValueError("public and evaluator must be supplied together")
+        if public is not None and episode_factory is not None:
+            raise ValueError("choose a fixed episode or an episode factory")
+        if public is None and episode_factory is None:
+            from .runtime import create_episode
+            episode_factory = create_episode
+        self._episode_factory = episode_factory
+        self._cursor_factory = cursor_factory
+        self._fixed_public = copy.deepcopy(public)
+        self._fixed_evaluator = evaluator
+        self.public = None
+        self.evaluator = None
+        self.closed = closed
+        self.timeout = timeout
+        self.done = True
+
+    def reset(self, seed=None, config=None):
+        # A failed reset must not leave the preceding episode usable.
+        self.done = True
+        self.public = None
+        self.evaluator = None
+        self._cursors = {}
+        self._page_cursors = {}
+        if self._episode_factory is None:
+            if seed is not None or config is not None:
+                raise ValueError("fixed episodes do not accept seed or config")
+            public, evaluator = self._fixed_public, self._fixed_evaluator
+        else:
+            public, evaluator = self._episode_factory(seed, copy.deepcopy(config))
+        public = copy.deepcopy(public)
+        initial = {"manifest": copy.deepcopy(public["manifest"]), "policy": copy.deepcopy(public["policy"]), "remaining_steps": 100}
+        self.public, self.evaluator = public, evaluator
+        self.steps = 0
+        self.started = time.monotonic()
+        self.done = False
+        return initial, {}
+
+    def step(self, action):
+        if self.done:
+            raise RuntimeError("episode ended; reset required")
+        if time.monotonic() - self.started >= self.timeout:
+            return self._finish([], truncated=True)
+        self.steps += 1
+        kind = action.get("action") if isinstance(action, dict) else None
+        if kind == "submit":
+            submission = {"episode_id": action.get("episode_id"), "findings": action.get("findings")}
+            if set(action) != {"action", "episode_id", "findings"} or not validate_submission(submission, self.public["manifest"]["episode_id"]):
+                self.done = True
+                return {"status": "invalid_submit", "remaining_steps": 100 - self.steps}, 0.0 if self.closed else -1.0, True, False, {}
+            return self._finish(submission["findings"])
+        if self.steps >= 100:
+            return self._finish([], truncated=True)
+        try:
+            obs = self._read(action, kind)
+        except (ValueError, TypeError, KeyError, SyntaxError, DecimalException, ZeroDivisionError, OverflowError, RecursionError):
+            obs = {"error": "invalid_action"}
+        obs["remaining_steps"] = 100 - self.steps
+        return copy.deepcopy(obs), 0.0, False, False, {}
+
+    def _read(self, action, kind):
+        if not isinstance(kind, str) or kind not in _READ_FIELDS:
+            raise ValueError()
+        required, optional = _READ_FIELDS[kind]
+        if not required <= set(action) <= required | optional:
+            raise ValueError()
+        tables = self.public["tables"]
+        if kind == "list_records":
+            table, cursor, limit = action.get("table"), action.get("cursor"), action.get("limit", 50)
+            if not isinstance(table, str) or table not in _RECORD_KEYS or type(limit) is not int or not 1 <= limit <= 50:
+                raise ValueError()
+            offset = 0
+            if cursor is not None:
+                if not isinstance(cursor, str) or cursor not in self._cursors:
+                    raise ValueError()
+                cursor_table, offset = self._cursors[cursor]
+                if cursor_table != table:
+                    raise ValueError()
+            if offset > len(tables[table]):
+                raise ValueError()
+            rows = tables[table][offset:offset + limit]
+            next_offset = offset + len(rows)
+            next_cursor = None
+            if next_offset < len(tables[table]):
+                page = (table, next_offset)
+                if page not in self._page_cursors:
+                    token = self._cursor_factory(*page) if self._cursor_factory else secrets.token_urlsafe(24)
+                    self._page_cursors[page] = token
+                    self._cursors[token] = page
+                next_cursor = self._page_cursors[page]
+            return {"records": rows, "next_cursor": next_cursor}
+        if kind == "get_record":
+            table, record_id = action.get("table"), action.get("id")
+            if not isinstance(table, str) or table not in _RECORD_KEYS or not isinstance(record_id, str):
+                raise ValueError()
+            matched = [row for row in tables[table] if _record_identifier(table, row) == record_id]
+            if len(matched) == 1:
+                return {"record": matched[0]}
+            raise ValueError()
+        if kind == "get_document":
+            doc_id = action.get("doc_id")
+            if not isinstance(doc_id, str):
+                raise ValueError()
+            for table in ("invoices", "payments"):
+                for row in tables[table]:
+                    if row.get("doc_id") == doc_id:
+                        return {"document": row}
+            raise ValueError()
+        if kind == "calculator":
+            return {"value": calculate(action.get("expression"))}
+        raise ValueError()
+
+    def _finish(self, findings, truncated=False, *, inspection_steps=None):
+        self.done = True
+        if inspection_steps is None:
+            inspection_steps = self.steps if truncated else self.steps - 1
+        score = self.evaluator(findings, inspection_steps)
+        if self.closed:
+            return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, 0.0, not truncated, truncated, {}
+        return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, score["reward"], not truncated, truncated, {"score": score}

@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Local agent planning/review scratch (never submission source).
+.superpowers/
+.role3-deps/

@@ -1,163 +1,288 @@
-"""Experimental Docker-isolated agent runner for trusted local evaluation.
-
-The Docker daemon and host kernel are part of the trust boundary. This is not
-proven secure for hostile production workloads or contest infrastructure.
-Only the agent script is mounted, and scoring remains on the host.
-"""
+"""Run a policy through restricted Docker. Only the policy script is mounted."""
+import argparse
 import copy
 import json
 import os
 from pathlib import Path
-import selectors
+import queue
 import secrets
-import shutil
 import subprocess
 import tempfile
+import threading
 import time
+
+from .canonical import JudgeEnv, MAX_ACTION_BYTES, ResetDeadline, bounded_json
 from .env import LedgerSandbox
+from .flight_recorder import FlightRecorder
 from .score import evaluate
 
 IMAGE = 'python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5'
-_MAX_ACTION_BYTES = 65536
+_MAX_OBSERVATION_BYTES = 8 * 1024 * 1024
+_READY = b"ledgergym-ready-v1\n"
+_BOOT = ("import runpy,sys;sys.stdout.buffer.write(b'ledgergym-ready-v1\\n');"
+         "sys.stdout.buffer.flush();runpy.run_path('/agent.py',run_name='__main__')")
 
 
-def _check_action_shape(value):
-    stack = [(value, 0)]
-    seen = 0
-    while stack:
-        item, depth = stack.pop()
-        seen += 1
-        if depth > 32 or seen > 4096:
-            raise ValueError('action structure exceeds limits')
-        if isinstance(item, dict):
-            stack.extend((child, depth + 1) for child in item.values())
-        elif isinstance(item, list):
-            stack.extend((child, depth + 1) for child in item)
+def _docker_command(name, script):
+    return ["docker", "run", "--rm", "-i", "--pull=never", "--name", name,
+            "--network", "none", "--read-only", "--cap-drop", "ALL", "--log-driver", "none",
+            "--security-opt", "no-new-privileges", "--pids-limit", "32", "--memory", "256m",
+            "--memory-swap", "256m", "--cpus", "0.5", "--user", "65534:65534", "--shm-size", "8m",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=16m",
+            "--mount", f"type=bind,src={script},dst=/agent.py,readonly",
+            IMAGE, "python", "-I", "-u", "-c", _BOOT]
+
+
+def _message(obs, reward, terminated, truncated, info):
+    return {"observation": obs, "reward": reward, "terminated": terminated,
+            "truncated": truncated, "info": info}
+
+
+def _pipe_worker(process, requests, replies, require_ready):
+    # The trusted supervisor times out independently even if either OS pipe blocks.
+    try:
+        if require_ready:
+            ready = process.stdout.readline(len(_READY) + 1) == _READY
+            replies.put((ready, None))
+            if not ready:
+                return
+        while True:
+            item = requests.get()
+            if item is None:
+                return
+            message, terminal, limit = item
+            wire = json.dumps(message, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode()
+            if len(wire) > _MAX_OBSERVATION_BYTES:
+                raise ValueError()
+            process.stdin.write(wire + b"\n")
+            process.stdin.flush()
+            if terminal:
+                replies.put((True, None))
+                return
+            line = process.stdout.readline(limit + 2)
+            if not line.endswith(b"\n") or len(line) - 1 > limit:
+                raise ValueError()
+            action = json.loads(line.decode("utf-8"))
+            if not bounded_json(action):
+                raise ValueError()
+            replies.put((True, action))
+    except (ValueError, UnicodeError, OSError, RecursionError, OverflowError):
+        replies.put((False, None))
+
+
+def _drive(process, env, initial, info, *, action_limit=MAX_ACTION_BYTES, require_ready=False,
+           diagnostics=None, workers=None):
+    requests = queue.Queue(maxsize=2)
+    replies = queue.Queue(maxsize=1)
+    worker = threading.Thread(target=_pipe_worker, args=(process, requests, replies, require_ready), daemon=True)
+    if workers is not None:
+        workers.append(worker)
+    worker.start()
+    message = _message(initial, 0., False, False, info)
+    try:
+        if require_ready:
+            # Only the trusted image bootstrap emits this marker before invoking
+            # the policy. An OCI/daemon failure and a policy exiting 125 differ.
+            try:
+                ready, _ = replies.get(timeout=max(0., env.deadline - time.monotonic()))
+            except queue.Empty:
+                return "runner_error"
+            if not ready:
+                return "runner_error"
+        while True:
+            left = env.deadline - time.monotonic()
+            if left <= 0:
+                raise queue.Empty
+            requests.put_nowait((message, False, action_limit))
+            valid, action = replies.get(timeout=left)
+            if time.monotonic() >= env.deadline:
+                raise queue.Empty
+            if not valid:
+                env.abort("protocol_error")
+                return "protocol_error"
+            obs, reward, terminated, truncated, info = env.step(action)
+            message = _message(obs, reward, terminated, truncated, info)
+            if terminated or truncated:
+                # A one-shot policy may already have exited after submit. Its committed
+                # action remains final irrespective of its terminal-read behavior.
+                requests.put_nowait((message, True, action_limit))
+                written, exit_code = False, None
+                grace = min(env.deadline, time.monotonic() + 1.5)
+                try:
+                    written, _ = replies.get(timeout=max(0., grace - time.monotonic()))
+                    exit_code = process.wait(timeout=max(0., grace - time.monotonic()))
+                except (queue.Empty, subprocess.TimeoutExpired):
+                    pass
+                if diagnostics is not None:
+                    diagnostics.update(written=written, policy_exit_code=exit_code)
+                if (obs.get("error") or {}).get("code") == "timeout":
+                    return "timeout"
+                if (obs.get("error") or {}).get("code") == "invalid_submit" or obs.get("status") == "invalid_submit":
+                    return "invalid_submit"
+                return "truncated" if truncated else "terminated"
+    except queue.Empty:
+        env.abort("timeout")
+        return "timeout"
+    finally:
+        requests.put_nowait(None)
+
+
+def _cleanup(process, name, workers=()):
+    client_stopped = False
+    try:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=5)
+        client_stopped = True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    # The daemon owns the workload independently of its client. Require two
+    # consecutive successful absence observations to cover a pending launch.
+    absent = 0
+    for _ in range(4):
+        try:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=2, check=False)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        try:
+            check = subprocess.run(["docker", "ps", "-aq", "--filter", f"name=^/{name}$"],
+                                   capture_output=True, timeout=2, check=True)
+            absent = absent + 1 if not check.stdout.strip() else 0
+        except (OSError, subprocess.SubprocessError):
+            absent = 0
+        if absent >= 2:
+            break
+        time.sleep(.1)
+    if not client_stopped:
+        try:
+            process.kill()
+            process.wait(timeout=1)
+            client_stopped = True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    for worker in workers:
+        worker.join(timeout=1)
+    io_stopped = all(not worker.is_alive() for worker in workers)
+    if client_stopped and io_stopped:
+        process.stdin.close()
+        process.stdout.close()
+    if absent < 2 or not client_stopped or not io_stopped:
+        raise RuntimeError("container cleanup unverified")
+
+
+def _launch(env, initial, info, agent_path, action_limit):
+    name = "ledgergym-agent-" + secrets.token_hex(12)
+    with tempfile.TemporaryDirectory(prefix="ledgergym-agent-") as directory:
+        os.chmod(directory, 0o755)
+        script = Path(directory) / "agent.py"
+        source_path = Path(agent_path)
+        if not source_path.is_file():
+            raise ValueError("invalid agent script")
+        with source_path.open("rb") as source:
+            code = source.read(1024 * 1024 + 1)
+        if len(code) > 1024 * 1024:
+            raise ValueError("invalid agent script")
+        script.write_bytes(code)
+        os.chmod(script, 0o644)
+        if time.monotonic() >= env.deadline:
+            env.abort("timeout")
+            return "timeout", None, {}
+        try:
+            process = subprocess.Popen(_docker_command(name, script), stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except OSError:
+            return "runner_error", None, {}
+        diagnostics = {}
+        workers = []
+        try:
+            outcome = _drive(process, env, initial, info, action_limit=action_limit, require_ready=True,
+                             diagnostics=diagnostics, workers=workers)
+            return outcome, name, diagnostics
+        finally:
+            _cleanup(process, name, workers)
+
+
+def run_file_agent(seed, config, agent_path, *, timeout=60):
+    """Run a canonical closed or train policy; configuration stays in the trusted judge."""
+    env = FlightRecorder(JudgeEnv(timeout=timeout))
+    try:
+        initial, info = env.reset(seed, config)
+    except ResetDeadline:
+        # No initial observation or policy action existed. A missing trusted
+        # truth header leaves the empty findings frozen but metrics unavailable.
+        return {"outcome": "timeout", "initial": None, "trajectory": [], "findings": [],
+                "score": env.final_score, "container_name": None, "terminal_delivery": {}}
+    outcome, name, diagnostics = _launch(env, initial, info, agent_path, MAX_ACTION_BYTES)
+    return {"outcome": outcome, "initial": initial, "trajectory": env.rows,
+            "score": env.final_score, "container_name": name, "terminal_delivery": diagnostics}
+
+
+class _NativeSession:
+    def __init__(self, env, deadline):
+        self.env = env
+        self.deadline = deadline
+        self.actions = []
+
+    def step(self, action):
+        self.actions.append(copy.deepcopy(action))
+        return self.env.step(action)
+
+    def abort(self, reason):
+        return self.env._finish([], truncated=True)
 
 
 def run_isolated_agent(public, truth, agent_path, *, timeout=60):
-    """Run a line-delimited JSON agent in a restricted container.
-
-    Agent receives {observation, reward, terminated, truncated, info} and
-    writes one JSON action per line. Result and truth remain evaluator-side.
-    No arbitrary host directories or Docker socket are mounted. Requires a
-    local Docker daemon and the exact pinned image; no image pull is attempted.
-    """
-    if not isinstance(timeout, (int, float)) or not 0 < timeout <= 60:
-        raise ValueError('invalid timeout')
-    source = Path(agent_path)
-    if not source.is_file() or source.stat().st_size > 1024 * 1024:
-        raise ValueError('invalid agent script')
-    public_ids = {v for rows in public['tables'].values() for row in rows for key, v in row.items() if key.endswith('_id') and isinstance(v, str)}
+    """Legacy native protocol. Preserve the earlier action and score result shape."""
+    if type(timeout) not in (int, float) or not 0 < timeout <= 60:
+        raise ValueError("invalid timeout")
+    ids = {v for rows in public["tables"].values() for row in rows for k, v in row.items()
+           if k.endswith("_id") and isinstance(v, str)}
     scores = []
     def scorer(findings, steps):
-        result = evaluate(truth['issues'], findings, public_ids, steps)
+        result = evaluate(truth["issues"], findings, ids, steps)
         scores.append(result)
         return result
-    env = LedgerSandbox(public, scorer, closed=True, timeout=timeout)
-    initial, info = env.reset()
-    actions = []
-    name = 'ledgergym-agent-' + secrets.token_hex(12)
-    deadline = time.monotonic() + timeout
-    process = None
-    with tempfile.TemporaryDirectory(prefix='ledgergym-agent-') as directory:
-        os.chmod(directory, 0o755)
-        mounted = Path(directory) / 'agent.py'
-        shutil.copyfile(source, mounted)
-        os.chmod(mounted, 0o644)
-        command = ['docker', 'run', '--rm', '-i', '--pull=never', '--name', name,
-                   '--network', 'none', '--read-only', '--cap-drop', 'ALL',
-                   '--security-opt', 'no-new-privileges', '--pids-limit', '32',
-                   '--memory', '256m', '--memory-swap', '256m', '--cpus', '0.5',
-                   '--user', '65534:65534', '--shm-size', '8m',
-                   '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=16m',
-                   '--mount', f'type=bind,src={mounted},dst=/agent.py,readonly',
-                   IMAGE, 'python', '-I', '-u', '/agent.py']
-        try:
-            process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
-            os.set_blocking(process.stdin.fileno(), False)
-            os.set_blocking(process.stdout.fileno(), False)
-            reader = selectors.DefaultSelector()
-            writer = selectors.DefaultSelector()
-            reader.register(process.stdout, selectors.EVENT_READ)
-            writer.register(process.stdin, selectors.EVENT_WRITE)
-            buffer = bytearray()
-            def send(message):
-                payload = json.dumps(message, ensure_ascii=False, separators=(',', ':')).encode() + b'\n'
-                while payload:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0 or not writer.select(remaining):
-                        raise TimeoutError()
-                    written = os.write(process.stdin.fileno(), payload)
-                    payload = payload[written:]
-            def receive():
-                while True:
-                    pos = buffer.find(b'\n')
-                    if pos >= 0:
-                        if pos > _MAX_ACTION_BYTES:
-                            raise ValueError('action too large')
-                        line = bytes(buffer[:pos])
-                        del buffer[:pos + 1]
-                        return json.loads(line)
-                    if len(buffer) > _MAX_ACTION_BYTES:
-                        raise ValueError('action too large')
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0 or not reader.select(remaining):
-                        raise TimeoutError()
-                    chunk = os.read(process.stdout.fileno(), 4096)
-                    if not chunk:
-                        raise EOFError()
-                    buffer.extend(chunk)
-            message = {'observation': initial, 'reward': 0.0, 'terminated': False, 'truncated': False, 'info': info}
-            while True:
-                send(message)
-                action = receive()
-                _check_action_shape(action)
-                actions.append(copy.deepcopy(action))
-                observation, reward, terminated, truncated, info = env.step(action)
-                if terminated or truncated:
-                    if observation.get('status') == 'invalid_submit':
-                        return {'outcome': 'invalid_submit', 'score': {'reward': -1.0}, 'actions': actions}
-                    return {'outcome': 'truncated' if truncated else 'terminated', 'score': scores[-1], 'actions': actions}
-                message = {'observation': observation, 'reward': reward, 'terminated': terminated, 'truncated': truncated, 'info': info}
-        except TimeoutError:
-            if not env.done:
-                env._finish([], truncated=True)
-            return {'outcome': 'timeout', 'score': scores[-1], 'actions': actions}
-        except (BrokenPipeError, EOFError, UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError, OverflowError):
-            return {'outcome': 'protocol_error', 'score': None, 'actions': actions}
-        finally:
-            if process is not None:
-                if process.poll() is None:
-                    process.kill()
-                process.wait(timeout=5)
-                try:
-                    subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
-                    cleanup_deadline = time.monotonic() + 5
-                    while True:
-                        check = subprocess.run(['docker', 'ps', '-aq', '--filter', f'name=^/{name}$'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10, check=False)
-                        if check.returncode == 0 and not check.stdout.strip():
-                            break
-                        if time.monotonic() >= cleanup_deadline:
-                            raise RuntimeError('could not verify container cleanup')
-                        time.sleep(0.1)
-                except (OSError, subprocess.TimeoutExpired) as exc:
-                    raise RuntimeError('could not verify container cleanup') from exc
+    native = LedgerSandbox(public, scorer, closed=True, timeout=timeout)
+    start = time.monotonic()
+    initial, info = native.reset()
+    native.started = start
+    env = _NativeSession(native, start + timeout)
+    outcome, _, _ = _launch(env, initial, info, agent_path, 65536)
+    result = None
+    if outcome == "invalid_submit":
+        result = {"reward": -1.0}
+    elif scores and outcome != "protocol_error":
+        result = scores[-1]
+    return {"outcome": outcome, "actions": env.actions, "score": result}
 
 
 def main():
-    import argparse
     from .episode_io import load_public_episode
-    parser = argparse.ArgumentParser(description='Run an experimental Docker-isolated agent on a local fixture.')
-    parser.add_argument('episode', help='trusted fixture directory containing public/ and private/')
-    parser.add_argument('agent', help='Python agent script implementing the line-delimited JSON protocol')
-    parser.add_argument('--timeout', type=float, default=60)
+    parser = argparse.ArgumentParser(description="Run an isolated policy on a trusted local fixture.")
+    parser.add_argument("episode")
+    parser.add_argument("agent")
+    parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument("--canonical", action="store_true")
+    parser.add_argument("--mode", choices=("closed", "train"), default="closed")
+    parser.add_argument("--team-config", type=json.loads, help="generate train input using this JSON object")
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     root = Path(args.episode)
-    public = load_public_episode(root / 'public')
-    truth = json.loads((root / 'private' / 'truth.json').read_text(encoding='utf-8'))
-    print(json.dumps(run_isolated_agent(public, truth, args.agent, timeout=args.timeout), sort_keys=True))
+    if args.canonical:
+        cfg = {"mode": args.mode}
+        if args.team_config is not None:
+            if args.mode != "train" or args.episode != "-":
+                parser.error("generated training uses '-' for episode and --mode train")
+            cfg["team_config"] = args.team_config
+        else:
+            cfg["episode_dir"] = root
+        result = run_file_agent(args.seed, cfg, args.agent, timeout=args.timeout)
+    else:
+        public = load_public_episode(root / "public")
+        truth = json.loads((root / "private" / "truth.json").read_text(encoding="utf-8"))
+        result = run_isolated_agent(public, truth, args.agent, timeout=args.timeout)
+    print(json.dumps(result, sort_keys=True))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

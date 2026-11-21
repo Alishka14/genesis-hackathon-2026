@@ -5,7 +5,7 @@ const $ = (id) => document.getElementById(id);
 const state = {
   episodes: { train: [], dev: [] }, page: 0, loading: false, requestId: 0,
   replaySteps: [], replayStep: 0, replayRequestId: 0, replayFormat: null,
-  findingsRequestId: 0,
+  findingsRequestId: 0, highlightId: null,
 };
 const labels = {
   reconciliation: "Reconciliation",
@@ -86,6 +86,7 @@ function updateEpisodes() {
     select.append(option);
   }
   state.page = 0;
+  state.highlightId = null;
   void loadRecords();
   void loadReplay();
   void loadFindings();
@@ -103,7 +104,20 @@ function renderRecords(report) {
   const body = $("record-body");
   head.replaceChildren();
   body.replaceChildren();
-  const fields = rows.length > 0 ? Object.keys(rows[0]).slice(0, 7) : [];
+  // Never hide amounts behind Object.keys(...).slice(0, 7): judges need
+  // invoice totals, payment amounts and ledger debit/credit at a glance.
+  const preferred = {
+    invoices: ["invoice_id", "doc_id", "entity_id", "currency", "total_minor",
+               "issued_at", "due_at", "line_items"],
+    payments: ["payment_id", "doc_id", "kind", "currency", "amount_minor",
+               "timestamp", "remittance_invoice_id", "invoice_refs"],
+    ledger: ["row_id", "timestamp", "account", "debit_minor", "credit_minor",
+             "currency", "invoice_id", "payment_id", "reporting_period"],
+    fx: ["rate_id", "date", "source_currency", "target_currency", "rate"],
+  };
+  const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const fields = [...new Set([...(preferred[report.table] ?? []), ...keys])]
+    .filter((key) => keys.includes(key)).slice(0, 10);
   if (!fields.length) {
     const tr = el("tr");
     tr.append(el("td", "", "На этой странице нет записей"));
@@ -114,6 +128,8 @@ function renderRecords(report) {
     head.append(header);
     for (const record of rows) {
       const tr = el("tr");
+      if (state.highlightId && ["invoice_id", "payment_id", "row_id", "rate_id", "doc_id"]
+        .some((key) => record[key] === state.highlightId)) tr.classList.add("evidence-highlight");
       for (const field of fields) {
         const full = cellValue(record[field]);
         const td = el("td", "", full);
@@ -161,6 +177,58 @@ async function loadRecords() {
   }
 }
 
+// Search the existing allowlisted public-data API only. Never fetch private
+// source files or use arbitrary paths supplied by evidence IDs.
+async function inspectPublicEvidence(id, preview) {
+  const split = $("split-select").value;
+  const episode = $("episode-select").value;
+  preview.textContent = "Поиск публичного документа…";
+  try {
+    for (const table of ["invoices", "payments", "ledger", "fx"]) {
+      for (let page = 0; page < 40; page += 1) {
+        if (split !== $("split-select").value || episode !== $("episode-select").value) return;
+        const query = new URLSearchParams({split, episode, table, page: String(page)});
+        const result = await getJson("/api/records?" + query.toString());
+        const rows = Array.isArray(result.records) ? result.records : [];
+        const matched = rows.find((record) =>
+          ["invoice_id", "payment_id", "row_id", "rate_id", "doc_id"]
+            .some((key) => record[key] === id));
+        if (matched) {
+          preview.replaceChildren();
+          preview.append(el("strong", "", "Публичный источник: " + table));
+          const list = el("dl", "evidence-fields");
+          for (const key of ["doc_id", "invoice_id", "payment_id", "row_id",
+                             "rate_id", "total_minor", "amount_minor",
+                             "debit_minor", "credit_minor", "currency",
+                             "timestamp", "issued_at", "date", "rate"]) {
+            if (matched[key] === undefined || matched[key] === null) continue;
+            list.append(el("dt", "", key.replaceAll("_", " ")),
+                        el("dd", "", cellValue(matched[key])));
+          }
+          preview.append(list);
+          const link = el("button", "evidence-open", "Показать запись в Company Explorer");
+          link.type = "button";
+          link.addEventListener("click", () => {
+            if (split !== $("split-select").value ||
+                episode !== $("episode-select").value) return;
+            state.page = page;
+            state.highlightId = id;
+            $("table-select").value = table;
+            void loadRecords();
+            $("explorer").scrollIntoView({behavior: "smooth", block: "start"});
+          });
+          preview.append(link);
+          return;
+        }
+        if (rows.length === 0 || (page + 1) * 50 >= Number(result.total)) break;
+      }
+    }
+    preview.textContent = "Доказательство не найдено среди доступных публичных записей.";
+  } catch (error) {
+    preview.textContent = "Не удалось открыть публичный источник: " + String(error.message);
+  }
+}
+
 function renderFindings(report) {
   setText("findings-count", report.count ?? "—");
   setText("findings-scope", String(report.accounting_model ?? "development") +
@@ -183,6 +251,17 @@ function renderFindings(report) {
     const amount = el("div", "finding-amount",
       String(finding.claimed_amount_minor ?? "—") + " minor · " +
       String(finding.currency ?? "—"));
+    const meaning = {
+      duplicate_invoice: "Возможное повторное обязательство за ту же услугу",
+      payment_allocation: "Несоответствие распределения платежа документам",
+      fx_rate_or_date: "Неверная дата курса или валютный пересчёт",
+      reporting_period: "Неверный отчётный месяц для операции",
+    };
+    const description = el("p", "finding-explanation",
+      meaning[finding.type] ?? "Отклонение от поддерживаемой учётной политики");
+    const note = el("p", "finding-explanation",
+      "Сумма minor — сумма претензии или разницы в минимальных денежных единицах. " +
+      "Это не всегда полная сумма счёта; первичные документы доступны ниже.");
     const affectedLabel = el("div", "finding-label", "AFFECTED RECORDS");
     const affected = el("div", "finding-tags");
     for (const id of Array.isArray(finding.affected_ids) ? finding.affected_ids : []) {
@@ -190,10 +269,16 @@ function renderFindings(report) {
     }
     const evidenceLabel = el("div", "finding-label", "PUBLIC EVIDENCE IDS");
     const evidence = el("div", "finding-tags evidence");
+    const evidencePreview = el("div", "evidence-preview", "Нажми на evidence ID, чтобы открыть публичную запись.");
     for (const id of Array.isArray(finding.evidence_ids) ? finding.evidence_ids : []) {
-      evidence.append(el("span", "finding-tag", String(id)));
+      const button = el("button", "finding-tag evidence-link", String(id));
+      button.type = "button";
+      button.title = "Найти публичное доказательство " + String(id);
+      button.addEventListener("click", () => void inspectPublicEvidence(id, evidencePreview));
+      evidence.append(button);
     }
-    card.append(header, amount, affectedLabel, affected, evidenceLabel, evidence);
+    card.append(header, amount, description, note,
+      affectedLabel, affected, evidenceLabel, evidence, evidencePreview);
     if (finding.explanation) {
       card.append(el("p", "finding-explanation", String(finding.explanation)));
     }

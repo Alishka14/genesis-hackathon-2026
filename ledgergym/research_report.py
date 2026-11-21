@@ -7,6 +7,7 @@ Outputs cannot be mounted into an untrusted closed-mode policy.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from collections import Counter
 import json
 from pathlib import Path
@@ -86,7 +87,8 @@ def analyse_development_dataset(dataset, output, *, trials=8):
     index_path = dataset / "index.json"
     if index_path.is_symlink() or not index_path.resolve(strict=True).is_relative_to(dataset):
         raise ValueError("unsafe dataset index")
-    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index_bytes = index_path.read_bytes()
+    index = json.loads(index_bytes.decode("utf-8"))
     if index.get("kind") not in KINDS:
         raise ValueError("expected a 10+10 synthetic company dataset")
     output = Path(output).expanduser().resolve()
@@ -187,6 +189,7 @@ def analyse_development_dataset(dataset, output, *, trials=8):
     report = {
         "kind": "ledgergym_evaluator_only_research_diagnostics_v1",
         "dataset_kind": index["kind"],
+        "dataset_index_sha256": hashlib.sha256(index_bytes).hexdigest(),
         "episodes": len(identities),
         "clean_case_counts": clean,
         "policies": {},

@@ -9,15 +9,23 @@ import time
 from .score import validate_submission
 
 
-from .record_ids import RECORD_KEYS as _RECORD_KEYS, record_identifier as _record_identifier
-
-
+# Availability in an input mapping does not grant access to an agent.
+_RECORD_KEYS = {
+    "ledger": "row_id", "invoices": "invoice_id",
+    "payments": "payment_id", "fx": "rate_id",
+}
 _READ_FIELDS = {
     "list_records": ({"action", "table"}, {"cursor", "limit"}),
     "get_record": ({"action", "table", "id"}, set()),
     "get_document": ({"action", "doc_id"}, set()),
     "calculator": ({"action", "expression"}, set()),
 }
+
+
+def _record_identifier(table, row):
+    if table == "fx" and not row.get("rate_id"):
+        return ":".join(row[key] for key in ("date", "source_currency", "target_currency"))
+    return row.get(_RECORD_KEYS[table])
 
 
 def calculate(expression):

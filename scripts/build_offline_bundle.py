@@ -40,6 +40,24 @@ def main():
                 parser.error(f'unsupported lock entry: {line}')
             name, release, digest = match.groups()
             expected[(name.lower().replace('-', '_'), release)] = digest
+    # Do not package symlinks or evaluator-only labels from an accidental
+    # local development output placed under a directory copied to the bundle.
+    for filename in ('judge_adapter.py', 'pyproject.toml', 'MANIFEST.in',
+                     '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md',
+                     'requirements-build.lock', 'requirements-dev.lock'):
+        member = root / filename
+        if not member.is_file() or member.is_symlink():
+            parser.error(f'missing or linked project root file: {filename}')
+    for dirname in ('ledgergym', 'tests', 'examples', 'docs', 'scripts', 'third_party_licenses'):
+        for member in (root / dirname).rglob('*'):
+            relative = member.relative_to(root).as_posix()
+            if member.is_symlink():
+                parser.error(f'refusing source symlink: {relative}')
+            if (relative.endswith('/private/truth.json')
+                    or relative.endswith('/private/provenance.json')
+                    or relative.endswith('/private_pair_index.json')
+                    or member.name in ('.env', '.envrc')):
+                parser.error(f'refusing evaluator-private source file: {relative}')
     available = {}
     for path in args.wheelhouse.glob('*.whl'):
         if not path.name.endswith('-none-any.whl'):
@@ -59,7 +77,7 @@ def main():
         # Build in a fresh tree so old build/ or egg-info files cannot enter it.
         for name in ('ledgergym', 'tests', 'examples', 'docs', 'scripts', 'third_party_licenses'):
             shutil.copytree(root / name, build_root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        for name in ('judge_adapter.py', 'requirements-role3-test.txt', 'pyproject.toml', 'MANIFEST.in', '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md', 'requirements-build.lock', 'requirements-dev.lock'):
+        for name in ('judge_adapter.py', 'pyproject.toml', 'MANIFEST.in', '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md', 'requirements-build.lock', 'requirements-dev.lock'):
             shutil.copy2(root / name, build_root / name)
         wheels, sources = stage / 'wheels', stage / 'source'
         wheels.mkdir(parents=True)
@@ -75,7 +93,9 @@ def main():
         (stage / 'requirements-runtime.lock').write_text(f'ledgergym=={project_version} --hash=sha256:{digest}\n')
         for name in ('requirements-build.lock', 'requirements-dev.lock', 'THIRD_PARTY_NOTICES.md'):
             shutil.copy2(root / name, stage / name)
-        for name in ('tests', 'examples', 'docs', 'third_party_licenses'):
+        # Tests import the integration gate from scripts/; ship its source as
+        # part of the review bundle, not just the unpackaged test files.
+        for name in ('tests', 'examples', 'docs', 'scripts', 'third_party_licenses'):
             shutil.copytree(root / name, stage / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         shutil.copy2(root / 'docs/OFFLINE_INSTALL.md', stage / 'README.md')
         shutil.copy2(root / 'scripts/verify_bundle.py', stage / 'verify_bundle.py')

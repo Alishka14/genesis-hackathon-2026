@@ -1,8 +1,7 @@
 """Trusted episode construction; never import this inside an untrusted agent."""
 import secrets
 from .generator import generate_episode
-from .score import evaluate
-from .record_ids import addressable_ids
+from .score import evaluate, accessible_evidence_ids
 
 
 def create_episode(seed=None, config=None):
@@ -16,7 +15,9 @@ def create_episode(seed=None, config=None):
     if config is None:
         config = {'scenario': 'duplicate_invoice', 'fault': True}
     public, truth = generate_episode(seed, config)
-    public_ids = addressable_ids(public)
+    # Only records/documents addressable through the public tool interface
+    # may support an evidence claim (not entity_id or other foreign keys).
+    public_ids = accessible_evidence_ids(public)
 
     def evaluator(findings, steps):
         return evaluate(truth['issues'], findings, public_ids, steps)

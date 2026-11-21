@@ -1,5 +1,7 @@
 # LedgerGym — учёт стороннего кода и использования ИИ
 
+**Дополнение от 21.11.2026:** через ChatGPT (GPT-6) и подключённый GitHub-инструмент созданы исследовательские модули EQT/FAA/CAB, их Python-тесты, исследовательский 10+10 отчёт, полный submission trace, серверные изменения Research Lab и документация в ветке agent/research/lg-030-034-diagnostics. Участник прямо поручил максимально реализовать оставшийся Master Plan; ручной приёмочный pytest и review ещё НЕ выполнены. В README/финальной презентации сохранить раскрытие ИИ для этой части; не приписывать моделям подтверждённые тесты без фактического прогона.
+
 **Статус:** шаблон раскрытия источников / draft. Заполнять по мере реальной работы; не считать запланированное использование фактическим.
 
 ## 1. Позиция автора кейса о стороннем коде и ИИ
@@ -116,18 +118,34 @@ OpenAI Codex по просьбе технического исполнителя
 ## Продолжение по мастер-плану v2: payment matching (21.11.2026)
 
 Codex полностью прочитал предоставленный пользователем план v2 и сохранил неизменённую копию в `MASTER_PLAN_V2.md`. Добавлены `payment_matching.py`, проверка перед внедрением ошибок company, 43 теста (включая 100 seed), MATCHING_SPEC, SCENARIO_CATALOG и карта выполнения плана. Модуль написан для проекта на стандартной библиотеке; внешние реализации финансового matching не копировались. P0 ограничен same-currency обычными платежами; refund и cross-currency allocation явно остаются незавершёнными. Изменение не приписывается конкретному участнику команды; независимый человеческий review не заменён автоматическими проверками. Фактические результаты: `PLAN2_PAYMENT_MATCHING_REPORT.md`.
-
-## План v2: журнал событий и локальная проверка, 21.11.2026
-
-Codex реализовал канонический encoder публичных replay-событий и команду offline verification, добавил негативные/интеграционные тесты, проверил существующие данные и подготовил документацию/поставку. Использованы собственный синтетический генератор, стандартная библиотека Python и уже закреплённые pytest/build-зависимости; новые сторонние пакеты и внешние финансовые данные не добавлялись. Результаты и ограничения зафиксированы в PLAN2_RECORDER_REPORT.md. Это запись применения ИИ, а не распределение личного вклада людей.
 ## Role 3, 21 November 2026
 
 OpenAI Codex was used for repository recovery, the canonical judge transport, issued deterministic cursors, restricted policy runner hardening, independent hand-authored environment fixtures, replay/trajectory helpers, tests, CI and documentation. The user explicitly authorized all three Role 3 phases and a reviewable PR without merging. The existing financial generator and matcher methodology were delegated without modifying their modules. No human review is claimed until recorded.
 
 Production additions use Python standard-library modules. Test-only dependencies are pinned in requirements-role3-test.txt and are not vendored into product source. Python 3.11.9 portable interpreter from python.org was used for compatibility verification, alongside bundled Python3.12.14. Linux CI actions are pinned to resolved official actions/checkout and actions/setup-python commits. Docker uses the existing pinned Python image and never pulls during evaluation. Actual version/results and isolation limitations are recorded in the Role3 phase reports; no trained-model improvement or competition score is claimed.
 
-При завершении этапа recorder обновлённая базовая ветка уже содержала PR #18/#19. Codex интегрировал эти изменения в свою рабочую ветку, сохранил оба протокола, добавил недостающие диагностические файлы в sdist и исправил переносимость Docker network-теста: проверка активных интерфейсов и блокировки соединения вместо списка имён sysfs. Все новые результаты отделены от предыдущего прогона в PLAN2_RECORDER_REPORT.md; финансовые owner-blockers базы не объявлены исправленными.
 
-## Evidence/matching, 21.11.2026
+## Релизные изменения и интерфейс, 21 ноября 2026 года (фактическая запись)
 
-Codex воспроизвёл диагностические сбои, вынес общую проверку адресуемых публичных ID и реализовал стабильный максимальный matching. Проверки используют четыре существующих синтетических сценария и независимый полный перебор 512 малых графов. Новых внешних данных или библиотек нет. Конфликтующие правила формы submit не изменены; решение о них явно вынесено в MATCHER_CONTRACT_DECISIONS.md.
+Следующие изменения созданы с помощью **ChatGPT (GPT-6)** и подключённого GitHub-инструмента по прямым поручениям технического участника. Это следует раскрыть в README и конкурсной презентации. Код, тесты и документация должны пройти человеческую проверку; использование ИИ само по себе не подтверждает корректность финансовой реализации.
+
+| Модули и этапы | Выполненная ИИ-работа | Фактическая человеческая проверка |
+| --- | --- | --- |
+| PR №28, `scripts/verify_integration.py`, `tests/test_integration_gate.py` | Создание интеграционного проверяющего сценария и корректировка ошибочной проверки приватных путей | Участник запустил на macOS/Python 3.14 полный gate: `success=true`, 20 эпизодов, 60 replay, шесть причинных пар |
+| PR №28, `tests/test_role3_runtime.py` | Исправление переносимости проверок изоляции на Docker Desktop | Участник повторно запустил Docker-тесты: **22 passed / 0 failed / 0 skipped** |
+| PR №30, офлайн-поставка и новые тесты | Сборка hash-locked wheels, проверка manifest и установленного пакета | Участник проверил на macOS/Python 3.11.18: 9/9 стадий, 45/45 тестов, 145 SHA-256 проверенных файлов; Git commit подтвердили отдельно |
+| PR №31, сценарий видео и handoff | Черновики сценария демонстрации, списка материалов и границ результатов | Участник запустил оба CLI-примера: один синтетический duplicate TP=1, отдельный clean exact replay |
+| PR №32, `fixture_evaluation.py`, `dashboard.py`, `dashboard_static/`, `profile_local_resources.py` и тесты | Дополнительный полный baseline event recorder, локальный HTML/CSS/JS dashboard, replay inspector, ресурсный профайлер и безопасность read-only API | **Пока не подтверждено локальными тестами текущего PR**; запись об успешной проверке появится только после реального прогона |
+
+Код LedgerGym и фронтенд не содержат скопированного стороннего визуального шаблона в указанных изменениях; CSS/HTML/JS сгенерированы под этот проект. Использованные внешние Python build/test wheels, версии и сохранённые лицензии перечислены в `THIRD_PARTY_NOTICES.md`, `requirements-build.lock`, `requirements-dev.lock` и `third_party_licenses/`. Установка Python и Docker-образа отдельно от пакета не означает включение их исходного кода в пакет LedgerGym.
+
+Имена людей, выбранная лицензия **собственного** исходного кода, официальное принятие изменений капитаном и финальный список участников остаются открытыми до ручной проверки; не придумывать их. Эта запись не является заявлением, что весь проект разрабатывался исключительно человеком или исключительно ИИ.
+
+
+### LG-037 / P1 EQT policy evidence, 21 November 2026
+
+По прямому поручению технического участника ChatGPT (GPT-6) через подключённый GitHub-инструмент подготовил отдельную исследовательскую ветку с `ledgergym/policy_evidence.py`, тестами `tests/test_policy_evidence.py`, изменением агрегирования в `ledgergym/research_report.py` и документом `docs/verification/LG037_EQT_PUBLIC_POLICY.md`. Модуль анализирует только открытые факты модели v1: применённую дату FX по валютной политике и прямое расхождение между remittance_invoice_id платежа и invoice_id проводки, если обе записи процитированы как доказательства. Официальная функция награды, общий matcher и закрытый агентский протокол не изменялись. Сторонний исходный код не копировался, внешние runtime-зависимости не добавлялись. Запуск pytest для этого нового коммита и независимое человеческое ревью остаются NOT_RUN / pending. Нельзя автоматически переносить результат P0 предыдущего коммита на этот PR.
+
+### LG-038 / P1 FAA per-operation attribution, 21.11.2026
+
+По прямому поручению пользователя ChatGPT (GPT-6) через GitHub-коннектор создал исследовательскую ветку `agent/research/lg-038-faa-operation-cases`. Добавлены `ledgergym/faa_operation_cases.py`, `tests/test_faa_operation_cases.py`, доработаны `ledgergym/research_diagnostics.py`, `ledgergym/research_report.py` и интеграционные тесты. Использованы только существующая финансовая синтетическая модель v1/v2, собственные валидаторы и публичные ссылки; чужой исходный код из Diyaz Forge, CheckList, Hypothesis или других проектов не копировался, новых сторонних зависимостей нет. FAA теперь консервативно размечает валидные платежи в эпизодах с ошибками и не приписывает FP сразу нескольким операциям. Официальный `score.py` и интерфейс judge не менялись. Запуск новых тестов и полный P0 на этом коммите остаются NOT_RUN до проверки оператором; результаты на предыдущих коммитах не переносятся автоматически.

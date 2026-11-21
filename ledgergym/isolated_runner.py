@@ -15,7 +15,6 @@ from .canonical import JudgeEnv, MAX_ACTION_BYTES, ResetDeadline, bounded_json
 from .env import LedgerSandbox
 from .flight_recorder import FlightRecorder
 from .score import evaluate
-from .record_ids import addressable_ids
 
 IMAGE = 'python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5'
 _MAX_OBSERVATION_BYTES = 8 * 1024 * 1024
@@ -236,7 +235,8 @@ def run_isolated_agent(public, truth, agent_path, *, timeout=60):
     """Legacy native protocol. Preserve the earlier action and score result shape."""
     if type(timeout) not in (int, float) or not 0 < timeout <= 60:
         raise ValueError("invalid timeout")
-    ids = addressable_ids(public)
+    ids = {v for rows in public["tables"].values() for row in rows for k, v in row.items()
+           if k.endswith("_id") and isinstance(v, str)}
     scores = []
     def scorer(findings, steps):
         result = evaluate(truth["issues"], findings, ids, steps)

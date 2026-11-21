@@ -13,7 +13,6 @@ import time
 from . import score
 from .env import LedgerSandbox, _record_identifier
 from .episode_io import load_public_episode
-from .record_ids import addressable_ids
 
 LOG = logging.getLogger("ledgergym.judge")
 METRICS = ("tp", "fp", "fn", "precision", "recall", "f1")
@@ -113,7 +112,8 @@ def _load_truth(root):
 
 
 def _scorer(public, truth):
-    ids = addressable_ids(public)
+    ids = score.accessible_evidence_ids(public)
+
     def evaluate(findings, steps):
         return score.evaluate(truth["issues"], findings, ids, steps)
     return evaluate

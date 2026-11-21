@@ -181,11 +181,3 @@ Private truth: `issues` содержит `issue_id`, `type`, `affected_ids`, `ex
 `company_dataset` создаёт индекс kind=`synthetic_company_development` и 10+10 эпизодов. Это открытый набор разработки. Размер и состав ошибок перемешиваются отдельно; train/dev используют разные seed/IDs. `fixture_evaluation` поддерживает как прежний development_fixtures_not_benchmark, так и этот новый kind. Перед оценкой company проверяется финансовая согласованность/истина; каждый не-oracle результат повторяется через replay. Отчёт содержит общие метрики, train/dev отдельно, mean_reward, mean_inspection_steps и количество совпавших replay. trajectories.jsonl помечается `trajectory_format="ledgergym-actions-v1"`; скрытые seed, truth и provenance в него не записываются.
 
 Сверочный baseline разделяет публичные правила с company_checks, но не получает truth. Его метрики не являются независимой оценкой качества агента. Закрытая граница исполнения не менялась.
-
-## Совместимые отчётные артефакты (план v2, 21.11.2026)
-
-Новый `events.jsonl` использует `ledgergym-events-v1`; reset имеет step=-1, действия — прежние индексы с нуля. Случайные page tokens заменяются переносимыми from_step ссылками. Подробный контракт: `EVENT_RECORDING.md`. `trajectories.jsonl`, JSON среды, scorer и reward сохраняют прежние контракты. `verification.json` — отдельный служебный результат единой локальной проверки, не агентское наблюдение.
-
-## Evidence и matching: совместимое исправление 21.11.2026
-
-Доступность ID для evaluator едина в native/canonical/baseline/replay/restricted native путях: ID уникальной читаемой записи разрешённой таблицы либо doc_id invoices/payments. Сам foreign key не даёт полномочия использовать его как evidence. Дополнительные доступные доказательства по-прежнему разрешены. Максимальная мощность matching сохранена; tie-break описан в MATCHING_SPEC.md. Assignment не включается в публичный score. Форма submit, invalid-submit, reward и limits не меняются; открытые разногласия вынесены в MATCHER_CONTRACT_DECISIONS.md.

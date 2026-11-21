@@ -1,10 +1,10 @@
 include README.md
 include requirements-*.lock
-include requirements-role3-test.txt
 include THIRD_PARTY_NOTICES.md
 include .python-version
-recursive-include docs *.md *.py *.json
+recursive-include docs *.md
 recursive-include tests *.py
 recursive-include examples *.py
 recursive-include scripts *.py
+recursive-include ledgergym/dashboard_static *.html *.css *.js
 recursive-include third_party_licenses *

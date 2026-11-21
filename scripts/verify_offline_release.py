@@ -26,6 +26,7 @@ INSTALLED_TESTS = (
     # Exercise the dashboard and complete transition recorder *from the
     # installed wheel*, not a repo-imported ledgergym package.
     "tests/test_dashboard_and_full_events.py",
+    "tests/test_dashboard_jury_clarity.py",
     "tests/test_replay.py",
     "tests/test_research_diagnostics.py",
     "tests/test_research_robustness.py",

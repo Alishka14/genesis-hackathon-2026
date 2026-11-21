@@ -1,58 +1,75 @@
-# LedgerGym — script for a truthful demo video (target 2:40–2:55)
+# LedgerGym — сценарий финального видео GENESIS FinTech 2026
 
-**Recording status:** not recorded. **Verified evidence:** operator's local macOS Python 3.14 integration PASS, Docker 22/22 PASS; installed-wheel offline gate PASS under Python 3.11.18, 45/45 tests, 145 hash-checked files, 20 episodes/60 replays. Operator also ran `python3.11 -m ledgergym` and obtained `{"prototype":true,"scenario":"synthetic duplicate","terminated":true,"truncated":false,"reward":0.996,"score":{"tp":1,"fp":0,"fn":0,"f1":1.0}}`, a successful **trusted prototype** demonstration of a synthetic duplicate (not the isolated canonical evaluation). These are **local reports**, not official organizer results.
+**Дата обновления:** 22.11.2026. **Видео пока не подтверждено как записанное или загруженное.**
+Длительность: **2:45–2:55 (строго не больше 3:00)**. Снимать
+реальные экраны, без подмены результата и без личных данных/ключей.
 
-## Recording prerequisites
+**Источник для демонстрации:** только проверенный `main`
+`3b25dc0ac298c809d06bcca289bc15c920d9d469`.
+Идентичное дерево `a2be0a26` прошло полный локальный P0: 6/6,
+Docker 22/22 без пропусков, offline installed-wheel 172 теста,
+193 проверенных файла, интеграция 20 эпизодов / 60 траекторий /
+6 причинных пар. Публичный handoff: 10+10, 60 записанных
+траекторий / 1 488 переходов / 125 файлов / ни одного private truth.
+Это результаты **локальных синтетических проверок**, не баллы жюри.
 
-- Screen-record a clean Terminal or editor. Avoid showing local usernames, absolute personal paths, tokens, Docker environment variables, private evaluator truth, or credentials.
-- From repository branch `agent/submission/lg-028-demo-handoff`, run `python3.11 --version` and `git rev-parse --short HEAD`. Record the exact tested commit; do not claim a later commit inherits all earlier tests without checking it.
-- Keep `$HOME/ledgergym-offline-report.json` as an internal source of the aggregate statistics. It is acceptable to show aggregate status, not raw synthetic private labels.
-- **Critical distinction:** `python3.11 -m ledgergym.role3_demo local` uses a *clean* duplicate-invoice episode, and the supplied `examples/role3_policy.py` **always submits an empty findings list**. Thus `F1=1.0` with TP=FP=FN=0 here confirms correct behavior on a clean episode, **not demonstrated fault detection**.
+## Кадры и дикторский текст
 
-## Narrative with shot plan (Russian)
-
-| Time | On screen — real commands / artifacts | Narration guidance |
+| Время | Что показывать | Что произнести |
 | --- | --- | --- |
-| 0:00–0:18 | Project name LedgerGym and financial audit scenario summary | «Финансовый аудит зависит от доказательств: одинаковые суммы сами по себе ещё не означают ошибку. Мы создали синтетическую среду, в которой можно безопасно проверять расследование платежей и документов». |
-| 0:18–0:42 | `README.md` and `docs/INTERFACES.md`; public six-file schema `ledger.csv`, `invoices.jsonl`, `payments.jsonl`, `fx.csv`, `policy.json`, `manifest.json` | «Генератор создаёт согласованную историю компании. Агент получает публичные документы и работает через ограниченный интерфейс, а эталон ответов остаётся в доверенном оценщике». |
-| 0:42–1:12 | Run `python3.11 -m ledgergym`; previously observed output: `prototype=true`, `scenario=synthetic duplicate`, `tp=1`, `fp=0`, `fn=0`, `f1=1.0`, `reward=0.996`. Verify the on-camera output matches. | «В учебном примере два счёта описывают одну услугу. Агент проверяет записи и предъявляет связанные доказательства». **Explicitly label this a trusted local prototype, not a Docker-isolated canonical policy.** |
-| 1:12–1:40 | Run `python3.11 -m ledgergym.role3_demo local`. Show `VERIFIED_PASS`, `replay: exact`, actions `list_records` → `get_document` → `calculator` → `submit` | «Другой контрольный пример содержит ноль нарушений. Правильный результат здесь — не выдумывать ошибки. Действия и оценка воспроизводятся точно». |
-| 1:40–2:05 | Show sanitized `integration-full.json` in editor (from local operator) and 20 train/dev, 60 trajectories, 6 causal pairs | «В интеграционной проверке мы построили 20 эпизодов, воспроизвели 60 траекторий и проверили шесть причинных пар. В контрольных парах не было ложных обвинений». Keep benchmark scope explicit; no claims about external generalization. |
-| 2:05–2:25 | Capture a terminal running `python -m pytest -q -rs tests/test_isolated_runner.py tests/test_role3_runtime.py` **only if time permits**, or show the already observed `22 passed` result. | «Мы отдельно протестировали изоляцию агента: ограничения сети, файловой системы и очистку контейнера. 22 локальных Docker-теста прошли». |
-| 2:25–2:45 | Open sanitized `ledgergym-offline-report.json`, show `success: true`, `45 executed`, `145 verified files`, `replay: exact` | «Пакет также собран и проверен в чистой среде Python 3.11 без обращения к каталогу пакетов при установке». |
-| 2:45–2:55 | End screen with README launch instructions and exact commit | «Все инструкции, ограничения и использованные библиотеки указаны в репозитории». |
+| 0:00–0:17 | Заглавный экран LedgerGym | «LedgerGym — симулятор финансового аудита для проверки агентов. Главная идея: вывод о нарушении должен опираться на документы, проводки и сумму, а не на догадку». |
+| 0:17–0:40 | Dashboard > Company Explorer: invoices, payments, ledger, FX. Открыть два похожих законных invoice | «Генератор создаёт согласованную синтетическую компанию. Две одинаковые суммы не обязательно означают дубликат. Для оценки нужны контекст и идентификатор услуги». |
+| 0:40–1:12 | Переключить эпизод на неисправный; открыть Audit Findings, показать тип, сумму в minor и evidence ID. **В проверенном main evidence пока не кликабельны.** | «Здесь видно отклонение: его тип, затронутые записи и ссылки на публичные доказательства. Это результат детерминированной сверки — не ответ обученной LLM». |
+| 1:12–1:39 | Dashboard > Agent Replay: политика Reconciliation, шаги и итог. Показать одну фактическую траекторию | «Агент получает только ограниченные инструменты исследования. В конце он отправляет finding. Оценщик отдельно сопоставляет доказательства, учитывает ложные обвинения и число действий». |
+| 1:39–1:59 | Terminal показать `python3.11 -m ledgergym.role3_demo local`, статус `VERIFIED_PASS` и `replay=exact` | «Отдельная контрольная траектория воспроизводится точно. Это чистый эпизод: высокий F1 здесь означает отсутствие ложного обвинения, а не обнаружение ошибки». |
+| 1:59–2:24 | Обезличенный full P0 JSON: `success=true`, Docker, integration, offline wheel | «На проверенной версии шесть из шести локальных этапов прошли: 22 Docker-теста без пропусков, 172 теста установленного пакета, 20 эпизодов и 60 воспроизведённых траекторий». |
+| 2:24–2:40 | Показать `scripts/verify_submission_package.py` результат: `PASS`, `125`, `1488`, `private_truth_exported=false` | «Публичная конкурсная выборка проверена по структуре и SHA-256. Закрытый эталон не включён в экспорт». |
+| 2:40–2:53 | Итоговый экран: проблема → решение → ограничения и ссылка на repo | «Ограничения честно обозначены: данные синтетические, внешнее обобщение и результаты скрытых проверок жюри нам неизвестны». |
 
-## Вариант видео с новой веб-панелью (только после успешного локального запуска PR №32)
+## Порядок действий на MacBook
 
-Ветка `agent/p0/lg-029-recorder-dashboard` содержит новый **localhost Dashboard**. Это *дополнительный способ демонстрации тех же фактически собранных синтетических данных*, а не новый финансовый движок. Прежде чем включать его в ролик, необходимо получить на Mac успешный `pytest`, `node --check`, запуск сервера и визуально убедиться, что таблицы и Agent Replay действительно работают.
-
-Рекомендуемая замена кадров, если локальная проверка прошла:
-
-- **0:18–0:45:** открыть `http://127.0.0.1:8765`; показать 20 эпизодов, корректно подставленное из локального отчёта число TP/FP и объяснить, что это *development benchmark*.
-- **0:45–1:15:** Company Explorer, открыть синтетический invoice/payment/ledger и показать evidence-first анализ. **Не утверждать**, что браузерный просмотр сам вычисляет или исправляет бухгалтерские ошибки.
-- **1:15–1:40:** Agent Replay, выбрать Reconciliation и продемонстрировать `list_records` → `submit` вместе с числом прочитанных записей. Шаги заранее записаны доверенным baseline, не исполняются браузером в live режиме.
-- **1:40–2:05:** терминал `python3.11 -m ledgergym`, подтвердить локальный synthetic duplicate с TP=1. Отдельно показать чистый canonical `VERIFIED_PASS`; не смешивать эти рантаймы.
-- **2:05–2:55:** Docker 22/22, 10+10 train/dev, 60 replay, six causal pairs, офлайн-сборка и ограничения.
-
-Если панель не запустилась или появилась ошибка, используем **проверенный CLI-сценарий выше**; никакие UI-результаты не придумываем. Длительность всей демонстрации должна оставаться <=3:00.
-
-## Dry-run commands (Mac, no video editing performed here)
+1. Выбрать именно `main` и подтвердить его SHA. Сохранить отчёты P0 и
+   публичного экспортёра (достаточно обезличенных агрегатов).
+2. Для Dashboard использовать реальный локальный public-only режим:
 
 ```bash
-python3.11 --version
+git status --short
 git rev-parse --short HEAD
-python3.11 -m ledgergym
-python3.11 -m ledgergym.role3_demo local
+python3.11 -m ledgergym.dashboard --demo
+# Открыть http://127.0.0.1:8765 в браузере
 ```
 
-The first `ledgergym` example **has now been observed** to identify one deliberately injected synthetic duplicate invoice: TP=1, FP=0, FN=0, F1=1.0, reward=.996. The `role3_demo local` result **has now been observed** as `VERIFIED_PASS` with an exact replay on a clean episode: TP=0, FP=0, FN=0, F1=1.0, return=.994. Recheck the exact output on camera and label the two runtimes separately. Neither example alone establishes general-purpose financial detection or official hidden benchmark success.
+Режим `--demo` представляет **синтетическую локальную демонстрацию**.
+Не открывать `private/truth.json` или provenance в терминале/IDE/браузере.
+Результаты публичного export желательно показать отдельно по сохранённому
+отчёту, а не путать с демонстрационным dataset.
 
-The local full integration and offline release reports have already been tested separately. Do not re-run heavyweight processes merely for a smooth recording; an honest captured Terminal result and its origin is sufficient. Avoid presenting the oracle policy as an autonomous agent: it receives evaluator information and is intended only as an upper-bound control.
+3. Записывать экран в 1080p, на секунду задержать кадры с доказательствами;
+   показать содержимое Dashboard только после проверки, что там нет
+   реальных персональных данных.
+4. Убрать из записи домашние пути, имя пользователя, токены, уведомления.
+   Убедиться, что речь внятная, а общая продолжительность ≤3 минут.
+5. Проверить все фактические числа по запущенному коду; не выдавать
+   `role3_demo local` за Docker-изолированного конкурсного агента.
+6. Загрузить видео в Drive и проверить ссылку из неавторизованного
+   аккаунта или с уровнем доступа жюри. Вписать URL в submission doc.
 
-## Recording acceptance
+## Если PR #41 пройдёт отдельный P0 до записи
 
-- Actual screen capture with continuous/clearly labeled cuts and the output corresponding to the displayed command.
-- Under **3:00** including title/credits; verify file plays without codec problems.
-- No secrets, private evaluation material, personal home-directory paths, or real financial data.
-- Narration accurately separates trusted prototype, clean canonical demo, synthetic generator benchmarks, and real Docker sandbox checks.
-- Final shared video URL and access check must be completed by the team; not supplied by this doc.
+В варианте интерфейса PR #41 в Explorer присутствует `total_minor`,
+а evidence ID можно нажать и найти исходную публичную запись.
+Показывать это в видео **только если PR объединён, новый SHA проверен
+и именно эта версия реально запущена**. Не переносить PR #40 ради
+презентации без независимой приёмки и полного P0.
+
+## Запрещённые утверждения
+
+- «Наша LLM уже научилась находить fraud» — отдельная модель не обучена.
+- «Официальная точность 95%» — оценки жюри неизвестны.
+- «Эталон финансов полностью независимый» — производственный checker
+  делит бизнес-предположения с генератором; PR #40 ещё не протестирован.
+- «Полная поддержка валют и всех случаев refunds» — поддерживаются
+  только явно описанные синтетические сценарии.
+- «В GitHub Actions все проверки зелёные» — jobs прежде не запускали шагов.
+
+**Дополнительный актуальный handoff:** `docs/verification/FINAL_SUBMISSION_HANDOFF_2026-11-21.md`.

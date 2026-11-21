@@ -204,3 +204,17 @@ button,select,a{outline-offset:3px}
 @media(max-width:880px){.replay-workspace{grid-template-columns:1fr}.replay-steps{max-height:230px}.replay-toolbar .metadata{width:100%;order:4}}
 @media(max-width:640px){.replay-toolbar{gap:12px}.replay-stats{gap:8px}.replay-inspector{padding:18px}.replay-event small{display:none}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+
+/* Public-evidence drilldown: source IDs are buttons, never private links. */
+.finding-tags.evidence .evidence-link{font:inherit;font-size:10px;cursor:pointer;text-align:left}
+.evidence-link:hover,.evidence-link:focus-visible{background:#345646;border-color:#a7db97}
+.evidence-preview{margin-top:12px;padding:10px 11px;background:#10231e;border:1px solid #3a5947;
+  border-radius:7px;color:#b6d4c6;font-size:11px;line-height:1.7;overflow-wrap:anywhere}
+.evidence-fields{display:grid;grid-template-columns:minmax(95px,auto) minmax(0,1fr);gap:4px 11px;margin:8px 0}
+.evidence-fields dt{color:#83ad9c}.evidence-fields dd{color:#e1ece6;margin:0;overflow-wrap:anywhere}
+.evidence-open{background:#28483b;color:#e4f5e4;border:1px solid #59826a;border-radius:6px;
+  padding:7px 11px;cursor:pointer;font-size:11px;margin-top:6px}
+.evidence-open:hover{background:#365f4d}
+.data-table tbody tr.evidence-highlight{background:#284337}
+.data-table tbody tr.evidence-highlight td:first-child{border-left:3px solid var(--mint)}

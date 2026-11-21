@@ -33,6 +33,8 @@ def evaluate_fixture_dataset(dataset, output):
                        'f1_sum': 0.0, 'reward_sum': 0.0} for name in policies}
     clean_slices = {'overall': {}, 'train': {}, 'dev': {}}
     model_counts = {'train': {}, 'dev': {}}
+    v2_labels = {'train': {'clean': 0, 'faulty': 0},
+                 'dev': {'clean': 0, 'faulty': 0}}
     trajectories = []
     seen_ids = set()
     for split in ('train', 'dev'):
@@ -66,6 +68,8 @@ def evaluate_fixture_dataset(dataset, output):
             if extended:
                 counts = model_counts[split]
                 counts[model] = counts.get(model, 0) + 1
+                if model == 'accrual_company_v2':
+                    v2_labels[split]['faulty' if truth['issues'] else 'clean'] += 1
             public_ids = accessible_evidence_ids(public)
             for name in policies:
                 result = run_baseline(public, truth, name, seed=0)
@@ -104,7 +108,9 @@ def evaluate_fixture_dataset(dataset, output):
     if extended:
         for split in ('train', 'dev'):
             if model_counts[split].get('accrual_company_v2') != 2:
-                raise ValueError('expected two clean settlement companies per split')
+                raise ValueError('expected two settlement companies per split')
+            if v2_labels[split] != {'clean': 1, 'faulty': 1}:
+                raise ValueError('expected one clean and one faulted v2 episode')
             if 'accrual_company_v1' not in clean_slices[split]:
                 raise ValueError('expected at least one legacy clean control per split')
         for scope in clean_slices.values():
@@ -115,6 +121,7 @@ def evaluate_fixture_dataset(dataset, output):
                     metrics['mean_f1'] = metrics.pop('f1_sum') / n
                     metrics['mean_reward'] = metrics.pop('reward_sum') / n
         summary['model_counts'] = model_counts
+        summary['v2_label_counts'] = v2_labels
         summary['clean_false_accusations'] = clean_slices
         summary['shortcut_warning'] = (
             'The public accrual_company_v2 model has both clean and faulted episodes, '

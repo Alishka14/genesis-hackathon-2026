@@ -20,6 +20,7 @@
         <a class="nav-link is-active" href="#overview"><span aria-hidden="true">◈</span> Обзор</a>
         <a class="nav-link" href="#benchmark"><span aria-hidden="true">▥</span> Benchmark</a>
         <a class="nav-link" href="#explorer"><span aria-hidden="true">▤</span> Company Explorer</a>
+        <a class="nav-link" href="#replay"><span aria-hidden="true">↻</span> Agent Replay</a>
         <a class="nav-link" href="#architecture"><span aria-hidden="true">◇</span> Архитектура</a>
       </nav>
       <div class="sidebar-bottom">
@@ -88,7 +89,48 @@
           <div class="table-footer"><span id="record-status">Показаны только публичные поля; приватные ответы не выдаются сервером.</span><div class="pagination"><button id="prev-page" disabled>← Назад</button><span id="page-status">—</span><button id="next-page" disabled>Вперёд →</button></div></div>
         </section>
 
-        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 04</div><h2>Как устроен LedgerGym</h2></div></div>
+
+        <section class="panel replay-panel" id="replay" aria-label="Воспроизведение расследования">
+          <div class="panel-head replay-heading">
+            <div><div class="section-kicker">INVESTIGATION / 04</div><h2>Agent Replay</h2>
+              <p class="panel-sub">Пошаговое воспроизведение действий baseline на выбранном эпизоде. Только синтетические данные.</p></div>
+            <span class="pill subtle">RECORDED · READ ONLY</span>
+          </div>
+          <div class="replay-toolbar">
+            <label for="replay-policy">Политика
+              <select id="replay-policy">
+                <option value="reconciliation">Reconciliation</option>
+                <option value="seeded_random">Seeded Random</option>
+                <option value="mark_all">Mark All</option>
+              </select>
+            </label>
+            <span id="replay-mode" class="metadata">Ожидание траектории</span>
+            <div class="replay-navigation">
+              <button type="button" id="replay-prev" disabled aria-label="Предыдущий шаг">← Назад</button>
+              <span id="replay-position" aria-live="polite">—</span>
+              <button type="button" id="replay-next" disabled aria-label="Следующий шаг">Вперёд →</button>
+            </div>
+          </div>
+          <div class="replay-workspace">
+            <div class="replay-steps" id="replay-steps" aria-label="Шаги агента">
+              <div class="loading">Выбери эпизод для загрузки траектории.</div>
+            </div>
+            <div class="replay-inspector">
+              <div class="section-kicker">SELECTED EVENT</div>
+              <div class="replay-action" id="replay-action">—</div>
+              <div class="replay-description" id="replay-description">Выбери шаг расследования в списке слева.</div>
+              <div class="replay-stats">
+                <div><span>Прочитано записей</span><strong id="replay-records">—</strong></div>
+                <div><span>Отправлено findings</span><strong id="replay-findings">—</strong></div>
+                <div><span>Награда на шаге</span><strong id="replay-reward">—</strong></div>
+                <div><span>Статус</span><strong id="replay-status">—</strong></div>
+              </div>
+              <p class="replay-disclaimer">Трассировка создана в доверенной development-среде. Значение reward отсутствует в закрытом протоколе агента. Oracle не имеет агентской траектории.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 05</div><h2>Как устроен LedgerGym</h2></div></div>
           <div class="architecture-grid">
             <div class="arch-step"><span class="arch-number">01</span><div><h3>LedgerWorld</h3><p>Синтетические бухгалтерские операции: счета, оплаты, FX, периоды, чистые и ошибочные случаи.</p></div></div>
             <div class="arch-step"><span class="arch-number">02</span><div><h3>LedgerSandbox</h3><p>Ограниченные действия расследования, budget и воспроизводимые переходы среды.</p></div></div>

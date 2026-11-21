@@ -54,6 +54,28 @@ cat /tmp/ledgergym-resource-lg029.json
 
 При повторе выбери **новые имена** для датасета и отчёта; существующие пути не перезаписываются. Никаких неизвестных лимитов жюри не предполагаем.
 
+
+### Проверка frontend и installed wheel на LG-029
+
+```bash
+# Проверяет синтаксис клиентского JavaScript через Node (при наличии Node).
+node --check ledgergym/dashboard_static/app.js
+
+# Проверяет Python API, приватные границы, event recorder и resource profiler.
+python -m pytest -q -rs tests/test_dashboard_and_full_events.py tests/test_resource_profile.py
+
+# Если прошлый wheelhouse ещё доступен, используем его повторно (не скачиваем wheels).
+# Для нового output требуется новый путь: builder запрещает перезапись.
+python3.11 scripts/verify_offline_release.py \
+  --wheelhouse "$HOME/ledgergym-wheelhouse-2026" \
+  --bundle "$HOME/ledgergym-offline-dashboard-2026" \
+  --report "$HOME/ledgergym-offline-dashboard-report.json"
+```
+
+Новый release-gate **содержит дополнительную проверку наличия `index.html`, `app.css`, `app.js` в установленном пакете**, а также запускает тесты веб-панели/полного recorder из clean-room virtualenv. Поэтому ожидаем **10 стадий** в новом отчёте, а не прежние девять. Это пока не наблюдавшийся результат; предыдущие 9/9 относятся к PR №30.
+
+Панель **Agent Replay** работает с уже записанными baseline-эпизодами. Она не запускает произвольный Python-код агента через браузер и не является API для доступа к закрытому truth. Только `reconciliation`, `seeded_random` и `mark_all` имеют agent-action траектории; `oracle` исключён. В недавних датасетах интерфейс показывает step/action/record counts/reward; в старом `trajectories.jsonl` отображаются только действия без выдуманных наград.
+
 ## Что остаётся вне этой реализации
 
 1. Человеческая сверка контрактов/финансовых допусков с **первоисточником FinTech кейса**; скрытые проверки организатора не проводились.

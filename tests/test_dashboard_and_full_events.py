@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import threading
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from ledgergym.company_dataset import create_company_dataset
 from ledgergym.dashboard import dashboard_server
@@ -64,6 +64,21 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
             assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
             for path in ("/app.css", "/app.js"):
                 assert get(path)[0] == 200
+            # A malicious website must not access a loopback-only local
+            # dashboard using DNS rebinding or a foreign Origin.
+            for malicious_headers in (
+                {"Host": "attacker.example"},
+                {"Origin": "https://attacker.example"},
+            ):
+                request = Request(address + "/api/summary",
+                                  headers=malicious_headers)
+                try:
+                    urlopen(request, timeout=10)
+                except HTTPError as exc:
+                    assert exc.code == 403
+                    assert b'"local_origin_required"' in exc.read()
+                else:
+                    raise AssertionError("foreign origin reached local API")
             health = json.loads(get("/api/health")[1])
             assert health == {"status": "ok", "mode": "local_read_only",
                               "dataset": "synthetic_development"}

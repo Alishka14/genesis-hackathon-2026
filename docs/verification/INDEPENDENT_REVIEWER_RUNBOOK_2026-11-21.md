@@ -53,6 +53,7 @@ standard certification or a blinded judge episode.
 
 ```bash
 python -m pytest -q -rs \
+  tests/test_finance_manual_reference.py \
   tests/test_independent_finance_audit.py \
   tests/test_independent_dataset_cli.py \
   tests/test_financial_env_metamorphic.py \

@@ -4,7 +4,7 @@ import random
 from .env import LedgerSandbox
 from .fx_world import _convert
 from .period_world import _period
-from .score import evaluate
+from .score import evaluate, accessible_evidence_ids
 
 
 def _finding(kind, affected, amount, currency, evidence):
@@ -74,7 +74,9 @@ def run_baseline(public, truth, policy, seed=0):
     """
     if policy not in {'oracle', 'seeded_random', 'mark_all', 'reconciliation'}:
         raise ValueError('unknown baseline')
-    public_ids = {v for rows in public['tables'].values() for row in rows for key, v in row.items() if key.endswith('_id') and isinstance(v, str)}
+    # Use the same addressable evidence IDs as the canonical evaluator.
+    # Entity or relationship keys alone are not retrievable proof documents.
+    public_ids = accessible_evidence_ids(public)
     if policy == 'oracle':
         findings = [_finding(i['type'], i['affected_ids'], i['expected_amount_minor'], i['currency'], i['allowed_evidence_sets'][0]) for i in truth['issues']]
         return {'score': evaluate(truth['issues'], findings, public_ids, 0), 'trajectory': None}
@@ -109,9 +111,15 @@ def run_baseline(public, truth, policy, seed=0):
             break
     invoices = tables['invoices']
     if policy == 'reconciliation':
-        if initial['policy'].get('accounting_model') == 'accrual_company_v1':
+        model = initial['policy'].get('accounting_model')
+        if model == 'accrual_company_v1':
             from .company_checks import inspect_company
             findings = inspect_company({'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables})
+        elif model == 'accrual_company_v2':
+            from .settlement_faults_v2 import inspect_settlement_faults
+            # Both clean and faulty v2 share policy/schema. Use public evidence.
+            findings = inspect_settlement_faults(
+                {'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables})
         else:
             findings = _reconcile(tables, initial['policy'])
     elif policy == 'mark_all':

@@ -14,6 +14,9 @@ def _json_text(value):
 
 
 def _validator(public):
+    if public['policy'].get('accounting_model') == 'accrual_company_v2':
+        from .settlement_faults_v2 import validate_settlement_episode
+        return validate_settlement_episode
     if public['policy'].get('accounting_model') == 'accrual_company_v1':
         from .company_checks import validate_company
         return validate_company
@@ -36,10 +39,15 @@ def export_episode(root, public, truth, *, seed, provenance=None):
     expose the parent to an untrusted agent. Real isolation remains unimplemented.
     """
     _validator(public)(public, truth)
-    if public['policy'].get('accounting_model') == 'accrual_company_v1':
+    model = public['policy'].get('accounting_model')
+    if model in ('accrual_company_v1', 'accrual_company_v2'):
+        expected_version = {
+            'accrual_company_v1': 'company-0.1',
+            'accrual_company_v2': 'company-settlements-0.1',
+        }[model]
         if (not isinstance(provenance, dict) or type(seed) is not int
                 or type(provenance.get('seed')) is not int or provenance['seed'] != seed
-                or provenance.get('generator_version') != 'company-0.1'
+                or provenance.get('generator_version') != expected_version
                 or not isinstance(provenance.get('config'), dict)
                 or not isinstance(provenance.get('interventions'), list)):
             raise ValueError('matching private company provenance is required')
@@ -72,8 +80,8 @@ def load_public_episode(public_dir):
     public = {key: json.loads((folder / f'{key}.json').read_text(encoding='utf-8')) for key in ('manifest', 'policy')}
     tables = {}
     for table in ('invoices', 'payments'):
-        text = (folder / f'{table}.jsonl').read_text(encoding='utf-8')
-        tables[table] = [json.loads(line) for line in text.splitlines() if line]
+        with (folder / f'{table}.jsonl').open(encoding='utf-8') as stream:
+            tables[table] = [json.loads(line) for line in stream if line.strip()]
     for table in ('ledger', 'fx'):
         with (folder / f'{table}.csv').open(encoding='utf-8', newline='') as stream:
             rows = list(csv.DictReader(stream))

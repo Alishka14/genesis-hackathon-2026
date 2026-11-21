@@ -45,7 +45,8 @@ def _fixture(root):
     traces = root / 'evaluation' / 'submission'
     traces.mkdir(parents=True)
     _write_json(traces / 'trace_index.json',
-                {'closed_mode': False, 'private_truth_exported': False,
+                {'format': 'ledgergym-public-development-transitions-v1',
+                 'closed_mode': False, 'private_truth_exported': False,
                  'trajectories': spans})
     (traces / 'trajectories.jsonl').write_text(
         ''.join(json.dumps(event) + '\n' for event in events))
@@ -116,3 +117,30 @@ def test_outside_and_missing_episodes_rejected(tmp_path):
     _write_json(src / 'index.json', index)
     with pytest.raises(ValueError, match='relative episode path'):
         export_submission(src, tmp_path / 'export')
+
+def test_private_csv_column_rejected(tmp_path):
+    src = tmp_path / 'source'
+    _fixture(src)
+    csv_path = src / 'train' / 'episode-00' / 'public' / 'ledger.csv'
+    csv_path.write_text('row_id,issue_id\n1,private-issue\n')
+    with pytest.raises(ValueError, match='private evaluator column'):
+        export_submission(src, tmp_path / 'result')
+    assert not (tmp_path / 'result').exists()
+
+
+def test_real_company_dataset_export(tmp_path):
+    # End-to-end cross-check against the actual generator and trace recorder.
+    from ledgergym.company_dataset import create_company_dataset
+    from ledgergym.fixture_evaluation import evaluate_fixture_dataset
+
+    dataset = tmp_path / 'company'
+    create_company_dataset(dataset, seed=2026, include_settlement_hard_negatives=True)
+    summary = evaluate_fixture_dataset(dataset, dataset / 'evaluation')
+    output = tmp_path / 'public-company'
+    result = export_submission(dataset, output)
+    assert result['train'] == result['dev'] == 10
+    assert result['trajectories'] == summary['replay']['trajectories'] == 60
+    assert (output / 'trajectories.jsonl').is_file()
+    assert len(list(output.rglob('manifest.json'))) == 20
+    assert not list(output.rglob('truth.json'))
+    assert not list(output.rglob('provenance.json'))

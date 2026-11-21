@@ -14,6 +14,9 @@ def _json_text(value):
 
 
 def _validator(public):
+    if public['policy'].get('accounting_model') == 'accrual_company_v2':
+        from .company_checks_v2 import validate_settlement_company
+        return validate_settlement_company
     if public['policy'].get('accounting_model') == 'accrual_company_v1':
         from .company_checks import validate_company
         return validate_company
@@ -36,10 +39,15 @@ def export_episode(root, public, truth, *, seed, provenance=None):
     expose the parent to an untrusted agent. Real isolation remains unimplemented.
     """
     _validator(public)(public, truth)
-    if public['policy'].get('accounting_model') == 'accrual_company_v1':
+    model = public['policy'].get('accounting_model')
+    if model in ('accrual_company_v1', 'accrual_company_v2'):
+        expected_version = {
+            'accrual_company_v1': 'company-0.1',
+            'accrual_company_v2': 'company-settlements-0.1',
+        }[model]
         if (not isinstance(provenance, dict) or type(seed) is not int
                 or type(provenance.get('seed')) is not int or provenance['seed'] != seed
-                or provenance.get('generator_version') != 'company-0.1'
+                or provenance.get('generator_version') != expected_version
                 or not isinstance(provenance.get('config'), dict)
                 or not isinstance(provenance.get('interventions'), list)):
             raise ValueError('matching private company provenance is required')

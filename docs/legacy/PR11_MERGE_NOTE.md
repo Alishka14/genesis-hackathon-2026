@@ -1,0 +1,3 @@
+# Manual documentation conflict resolution for PR #11
+
+This merge combines the evolved LedgerGym code branch with the early Gate 0 / LG-010 planning work. The canonical docs/INTERFACES.md, docs/SCOPE.md and docs/SCENARIO_CATALOG.md retain the newer implementation-aligned contents from agent/integration/lg-002. Historical versions from the planning branch are preserved under docs/legacy/. All previously absent unique planning documents, reference implementation and test files are retained unchanged. No production code file was overwritten to settle the conflict. Local test results on this new merge commit: NOT_RUN; prior P0 applies only to its previously tested commit.

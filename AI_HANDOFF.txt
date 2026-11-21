@@ -1,41 +1,24 @@
-LedgerGym | Role 3 handoff | 21 November 2026, Astana
+LedgerGym final P0 integration candidate | 21 November 2026
 
-Branch: agent/environment/lg-role3
-Verified runtime commit: a1cce5e4a22d6b787ae1610cf96147bf6e68c3de
-Runtime CI: https://github.com/Alishka14/genesis-hackathon-2026/actions/runs/44881315145
-Feature base: agent/environment/lg-013, b85f1c1f7e5a8dada21c0c25fe12c706386b7f81 (PR #13)
-Use git rev-parse HEAD and the review PR head checks to identify the current
-documentation revision and its CI. The recorded source SHA is the runtime
-commit, so this file does not depend on a self-referential commit hash.
+Review branch agent/integration/final-p0 against agent/matching/plan2-payments (#16).
+Financial input 82719e8fd1731a86fbbd6467db383027d2dd2d0f includes #14 and #15.
+Environment input origin/agent/environment/lg-013 includes merged #18,
+c8dc0a5fee160edd963ed00e2bec555846d5e761. #17 is a separate training prototype.
+Use git rev-parse HEAD and the current PR head checks for candidate identity.
 
-Completed: canonical judge adapter, external file loading, action/timeout budget,
-issued deterministic cursors, restricted closed and train execution, host-only
-scoring and terminal diagnostics, per-step trajectories, literal replay, and the
-contract mirror. All seven independent-review findings have regression coverage.
+The judge adapter preserves private company provenance on export. The offline
+builder ships the judge module and example policies. Both sides of the README,
+interface and AI-disclosure changes are retained. Synthetic data only.
+Generator, baseline policies, matching methodology and reward logic are inherited.
 
-Verification: Windows CPython 3.11.9 and 3.12.14 each 197 PASS, 0 FAIL,
-13 Docker SKIP. Ubuntu CPython 3.11.18 and 3.12.16 each 210 PASS, 0 FAIL,
-0 SKIP with the pinned image. Both Ubuntu jobs passed the restricted demo.
-C20 Docker executed in CI. Organizer infrastructure remains NOT_RUN.
-Full financial P01–P20 compliance remains unverified. Twenty environment
-paired checks passed on hand-authored transport fixtures.
+Run python docs/verification/role3-company-smoke.py for four file-fed scenarios
+including 2,000 postings, 200 documents and 12 issues. Run python -m
+ledgergym.role3_demo local --trajectory trajectories.jsonl on one line for
+a public policy walkthrough. The PR workflow runs the restricted file-fed
+demo, Python 3.11/3.12 pytest, Docker, C01–C20, transport pairs, company
+validation and a hash-checked offline install. See docs/P0_INTEGRATION_GATE.md.
 
-Temporary combination: PR #16 (82719e8), based on #15/#14, plus Role 3.
-The company generator requires private provenance on export. The offline
-package must ship judge_adapter.py and the demo policy. README and INTERFACES
-conflict at the introduction. The proposed resolutions were tested in an
-isolated worktree only. Combined suite 292 PASS, 0 FAIL, 14 Docker SKIP on
-Windows 3.12.14. Clean, faulty, compound and 2,000-posting company smoke cases
-passed with exact replay. The Python 3.11 offline bundle and installed demo
-passed after temporary packaging adjustments. Combined Docker remains NOT_RUN.
-
-Role 4 blockers: repeated ID lists and semantic type or currency mismatches
-are rejected structurally by the delegated validator, and the matcher tie-break
-differs from the published rule. Role 2 and Role 4 own financial D/P validation
-and unfinished company cases. PR #17 is the independent training prototype.
-
-Next session: read docs/ROLE3_INTEGRATION_READINESS.md and the PR head checks.
-Coordinate the provenance API and packaging fix with Roles 2 and integration.
-Run combined CI with the pinned image after the stack is reconciled, then run
-the full financial/oracle paired checks with the corresponding owners.
-Captain approval governs merges, visibility and competition submission.
+Release gate remains open. Role 4 owns normalization, semantic validation,
+evidence consistency and tie-breaking. Role 2 owns independent data validation.
+After owner fixes, run official reward and financial paired protocols and record
+per-case results. Captain review is required before merging or submission.

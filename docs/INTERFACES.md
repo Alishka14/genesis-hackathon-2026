@@ -24,8 +24,6 @@ Canonical actions are `{"name":NAME,"args":ARGUMENTS}`:
 | calculator | expression | Decimal result string |
 | submit | findings: {episode_id, findings:[...]} | {accepted:true} |
 
-Record lookup uses row_id/invoice_id/payment_id and an existing rate_id for FX. If an external FX row has no rate_id, its lookup ID is `date:source_currency:target_currency`. This is an address, not an injected field: the public row stays unchanged. Ambiguous primary/natural keys return a bounded error; provide explicit unique rate_id values when rates share a natural key. The canonical evidence registry includes retrievable records/documents, not entity IDs merely mentioned in records.
-
 Step returns `({"result":value_or_null,"error":null_or_{code,message},"remaining_steps":int}, reward, terminated, truncated, {})`. Unknown actions/tables/IDs and malformed reads spend one action and produce bounded errors. Malformed submit terminates; closed reward is still zero. The findings validator and matcher remain Role 4 implementations; their documented outstanding normalization defects are not silently replaced here.
 
 One hundred actions include submit; 99 inspections plus submit are accepted, while 100 inspections truncate to empty findings. Inspection cost excludes submit. The deadline starts at reset entry and includes policy execution. Completion freezes the result until reset. Post-terminal operations cannot rescore or append findings.
@@ -34,7 +32,7 @@ One hundred actions include submit; 99 inspections plus submit are accepted, whi
 
 Canonical cursors are deterministic, table/page-bound and accepted only after issuance in the current reset. Reset clears issued authority. After an identical page is legitimately issued again, an identical historical string is necessarily indistinguishable from the newly issued string; current issuance is the authority. Native legacy clients retain their existing random tokens and portable replay. Exact canonical replay uses unchanged literal actions and full observable-value comparison, including tokens.
 
-`run_file_agent(seed, config, agent_path, timeout=60)` in `ledgergym.isolated_runner` supports supplied closed episodes, supplied train episodes, and generated train episodes. The restricted Docker process receives the copied policy script and the published JSON messages. Network access, filesystem access and process resources are restricted. Terminal score, trajectory and delivery diagnostics belong to the trusted caller. A startup failure returns `runner_error` without a score. When the trusted reset worker times out, it preserves the empty-answer score only if it has already read truth. See [security verification](ROLE3_PHASE2_SECURITY.md) for the tested boundary and limits.
+`run_file_agent(seed, config, agent_path, timeout=60)` in `ledgergym.isolated_runner` runs a policy through the restricted Docker path. Only its script is mounted; source, episode files, truth and Docker socket are not mounted. There is no unsandboxed fallback. Network is disabled; filesystem and process resources are restricted. Returned score/trajectory are trusted caller artifacts. Missing Docker/image is an explicit runtime limitation, not evidence of isolation.
 
 `FlightRecorder` and `verify_replay` in `ledgergym.flight_recorder` record/compare episode_id, step, action, observation, visible reward, terminated and truncated without adding truth to observations. A same-process judge object or recorder is not a security boundary: untrusted policies must never receive it directly.
 
@@ -43,7 +41,6 @@ Verification: `python -m ledgergym.role3_mirror`. Demos: `python -m ledgergym.ro
 See ROLE3_PHASE1_VERIFICATION.md, ROLE3_PHASE2_SECURITY.md and ROLE3_FINAL_VERIFICATION.md for actual results and limitations. The 20 paired tests cover environment transport and replay; they do not certify the Role 2/4 financial D01–D20 content.
 
 ## Historical native contract v0.3
-
 
 Статус: ПРОЕКТ, требуется сверка с оригинальным FinTech PDF и review команды. Разработка разрешена капитаном 20.11.2026; в команде три человека, персональные назначения ещё не предоставлены. Контракт не является подтверждением условий организаторов.
 
@@ -127,12 +124,13 @@ Private truth: `issues` содержит `issue_id`, `type`, `affected_ids`, `ex
 
 ### Генерация при reset и совместимость v0.3
 
-`LedgerSandbox()` создаёт среду с доверенной фабрикой `runtime.create_episode`. Каждый `reset(seed, config)` заново создаёт пару public/evaluator: оценщик замыкает truth только своего эпизода. Одинаковые seed/config воспроизводят содержимое малого эпизода и итоговую оценку; случайные курсоры исключены из побайтовой воспроизводимости.
+`LedgerSandbox()` создаёт среду с доверенной фабрикой `runtime.create_episode`. Каждый `reset(seed, config)` заново создаёт пару public/evaluator: оценщик замыкает truth только своего эпизода. Одинаковые seed/config воспроизводят содержимое выбранного эпизода и итоговую оценку; случайные курсоры исключены из побайтовой воспроизводимости.
 
 - `seed`: целое число, bool отвергается; `None` выбирает свежий случайный 128-битный seed. Скрытый seed не записывается в observation/info/траекторию.
 - `config=None`: `{"scenario":"duplicate_invoice","fault":true}`. Пустой объект и неизвестные поля отвергаются существующим генератором.
 - Одиночные `scenario`: `duplicate_invoice`, `payment_allocation`, `fx_rate_or_date`, `reporting_period`; необязательный `fault` — bool, по умолчанию true.
 - Составные `scenario`: `fx_allocation`, `duplicate_allocation`; необязательные `first_fault` и `allocation_fault` — bool, по умолчанию true.
+- `scenario="company"`: `postings` 200–2000 (по умолчанию 400), `documents` 20–200 (по умолчанию 80), словари `faults`/`compounds` с количеством ошибок. Суммарно 0–12 ошибок, compound считается за две. Требуется `postings >= 2*documents+2` и достаточное число подходящих операций. Подробности и допустимые сочетания: `COMPANY_MODEL.md`.
 - Параметры применяются заново при каждом reset, без наследования предыдущего config. Успешный reset выдаёт manifest/policy/remaining_steps=100 и info={}, обновляет таймер и полностью заменяет публичные данные, оценщик и курсоры.
 - При ошибке reset предыдущий эпизод становится недоступен для step; восстановление — следующий успешный reset. Ошибки генерации относятся к доверенному оркестратору. Агентский JSON-протокол не предоставляет reset или фабрику.
 
@@ -173,3 +171,13 @@ Private truth: `issues` содержит `issue_id`, `type`, `affected_ids`, `ex
 ## Экспериментальный контейнерный протокол
 
 `run_isolated_agent(public, truth, agent_path, timeout=...)` запускает только переданный файл агента в Docker (образ фиксирован по digest), без сети, с read-only корнем и ресурсными ограничениями. Агент получает JSON-строку `{observation, reward, terminated, truncated, info}` и отвечает одной JSON-строкой action; при closed-mode исследовательские reward=0, сведения оценщика не отправляются. Конечный score возвращается доверенному вызывающему процессу после завершения. Ошибка протокола не считается чистым решением и не получает score; тайм-аут оценивает пустой ответ. Это экспериментальный механизм с зависимостью от доверенного Docker daemon/ядра, не полноценная верификация безопасности.
+
+## Расширение v0.4: модель company и оценка набора
+
+Старые учебные сценарии сохраняют схемы и семантику. Новая модель имеет manifest.schema_version=`0.3-company` и policy.accounting_model=`accrual_company_v1`. Добавлены публичные поля company_id, line_id, rate_id в проводках и явные правила начислений. Полный смысл полей, допустимые финансовые ситуации, affected/evidence и значения сумм описаны в `COMPANY_MODEL.md`. Для company reporting_period affected_ids содержит invoice_id; для старой двухстрочной фикстуры — row_ids. Нельзя смешивать эти варианты без проверки policy/schema.
+
+`build_company(seed, config)` возвращает public, truth, provenance. Перед внедрениями проверяется чистая история; после — соответствие truth отдельно выведенным публичным фактам. `generate_episode(seed, {"scenario":"company", ...})` по-прежнему возвращает только public/truth; для сохранения истории нужен build_company. `export_episode` требует соответствующий seed и company provenance до создания каталога. История внедрений, seed и config записываются только в private/provenance.json. Загрузчик public восстанавливает null в nullable ledger line_id/rate_id; новые CSV/JSON файлы повторно загружаются без изменения данных.
+
+`company_dataset` создаёт индекс kind=`synthetic_company_development` и 10+10 эпизодов. Это открытый набор разработки. Размер и состав ошибок перемешиваются отдельно; train/dev используют разные seed/IDs. `fixture_evaluation` поддерживает как прежний development_fixtures_not_benchmark, так и этот новый kind. Перед оценкой company проверяется финансовая согласованность/истина; каждый не-oracle результат повторяется через replay. Отчёт содержит общие метрики, train/dev отдельно, mean_reward, mean_inspection_steps и количество совпавших replay. trajectories.jsonl помечается `trajectory_format="ledgergym-actions-v1"`; скрытые seed, truth и provenance в него не записываются.
+
+Сверочный baseline разделяет публичные правила с company_checks, но не получает truth. Его метрики не являются независимой оценкой качества агента. Закрытая граница исполнения не менялась.

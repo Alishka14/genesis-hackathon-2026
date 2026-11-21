@@ -1,18 +1,87 @@
-# LedgerGym — ранний прототип
+# LedgerGym — синтетическая среда финансового аудита
+
+LedgerGym генерирует согласованные синтетические истории, предоставляет ограниченные инструменты расследования и оценивает находки по доказательствам. Модель `company` поддерживает 200–2000 проводок, 20–200 документов и 0–12 ошибок четырёх типов, включая два связанных сценария. Конкурсный P0 ещё не завершён: требуется проверка целевого окружения, изоляции и соответствия первичным правилам.
+
+## Исследовательские модули и полный submission trace (новая ветка, не проверена на Mac)
+
+В ветке agent/research/lg-030-034-diagnostics реализованы: evaluator-only EQT и FAA, 10+10 aggregate research report, scorer invariance/дедуктивный shrinking, CAB causal clean/fault для четырёх v1 типов, CAD перестановка публичных таблиц и биективное переименование всех opaque ID. Полный обязательный формат записывается **отдельно** в evaluation/submission/trajectories.jsonl с trace_index.json; прежний evaluation/trajectories.jsonl оставлен переносимым action-only. В Dashboard необязательный режим --research-report показывает только агрегаты, связанные SHA-256 с выбранным датасетом.
+
+Создание 10+10 и исследования (все каталоги должны быть новыми):
+
+~~~bash
+RUN="$HOME/ledgergym-dev-$(date +%Y%m%d%H%M%S)"
+RESEARCH="$HOME/ledgergym-research-$(date +%Y%m%d%H%M%S)"
+python3.11 -m ledgergym.company_dataset "$RUN" --evaluate --settlement-hard-negatives
+python3.11 -m ledgergym.research_report "$RUN" "$RESEARCH"
+python3.11 -m ledgergym.cab_company_pairs
+python3.11 -m ledgergym.dashboard --dataset "$RUN" --research-report "$RESEARCH/research_summary.json"
+~~~
+
+Тесты этой ветки **NOT_RUN** на локальном Mac. Рассматриваем EQT/FAA как доверенные исследовательские постпроцессоры, не как официальный reward или независимый benchmark. Детали и остаток работ: [GATE3_RESEARCH_2026-11-21](docs/verification/GATE3_RESEARCH_2026-11-21.md).
+
+## Текущая сборка и локальная веб-панель (PR LG-029; требует проверки)
+
+Это **дополнительная ветка разработки**, пока не объединённая в `main`. Финансовое ядро, scorer и официальный reward не менялись ради интерфейса. В панели доступна только локальная открытая выборка; она предназначена для просмотра синтетических данных и агрегированных baseline-результатов, а **не** для выдачи скрытой оценки или обучения модели.
+
+**Быстрый запуск веб-интерфейса (Python 3.11+, без npm, без внешних API):**
+
+```sh
+python3.11 -m ledgergym.dashboard --demo
+# Открыть в браузере http://127.0.0.1:8765
+# Остановить в Terminal через Ctrl+C.
+```
+
+Если у тебя уже создан 10+10 dataset с `--evaluate`, можно открыть его без повторной генерации:
+
+```sh
+python3.11 -m ledgergym.dashboard --dataset /ПУТЬ/К/ДАТАСЕТУ
+```
+
+Dashboard предоставляет обзор эпизодов, F1/reward сравнение четырёх политик, train/dev селектор, постраничный просмотр **только публичных** `invoices`, `payments`, `ledger`, `fx` и интерактивный **Agent Replay** (пошаговый просмотр записанной траектории reconciliation/random/mark-all). В разделе **Audit Findings** отображаются найденные публичным детерминированным checker расхождения с affected IDs и evidence IDs. Этот checker не является обученной автономной моделью и использует правила, связанные с генератором. В Agent Replay не показываются приватные ответы, но используется локальный development-отчёт с итоговой reward; это не инструмент для закрытого агента. Сервер слушает **127.0.0.1**, API чтения ограничен фиксированными маршрутами. Frontend использует HTML/CSS/JS без сторонних библиотек; backend — стандартная библиотека Python. Это не общедоступный сайт и не production-сервер.
+
+**Новый полный event recorder:** после `python3.11 -m ledgergym.company_dataset NEW_DIR --settlement-hard-negatives --evaluate` появляется `NEW_DIR/evaluation/trajectories_full.jsonl` с `episode_id`, `step`, `action`, `observation`, `reward`, `terminated`, `truncated`. Это **доверенный development-артефакт**, содержащий reward; его нельзя выдавать недоверенному агенту в closed mode. Старый переносимый `trajectories.jsonl` с actions сохранён без изменения контракта.
+
+**Единый P0 acceptance gate:** `python scripts/verify_p0_release.py --mode focused --report "$HOME/ledgergym-p0-focused.json"` запускает локальные frontend/recorder/resource tests и проверяет JavaScript. Полный режим с заранее созданным wheelhouse и новым bundle: `python scripts/verify_p0_release.py --mode full --wheelhouse "$HOME/ledgergym-wheelhouse-2026" --bundle "$HOME/ledgergym-offline-p0" --report "$HOME/ledgergym-p0-full.json"`. Полный gate выполняет integration, **строгий** Docker JUnit без SKIP, no-index installed-wheel с frontend ассетами и CPU/RAM. Он выдаёт `success=true` только при всех технических PASS, но всегда оставляет `submission_ready=false` до подписания командой. **Применять только к чистой Git-ветке, отчёты и bundle требуют новых путей.**
+
+**Измерение локальных ресурсов:** `scripts/profile_local_resources.py` записывает wall time, CPU и наблюдаемый пик RSS для отдельной команды на macOS/Linux. Это измерение, **не** принудительное ограничение ресурсов и не подтверждение лимитов платформы жюри.
+
+Предыдущие локальные результаты **на родительской ветке**: Python 3.14 full integration PASS; Docker 22/22; Python 3.11.18 offline installed-wheel gate 9/9 с 45/45 тестами и SHA-256 145 файлов. Новые recorder/dashboard/profile изменения **ещё требуют отдельного прогона**. Подробности: [P0 и dashboard handoff](docs/verification/P0_DASHBOARD_2026-11-21.md).
+
+**Матрица соответствия FinTech-кейсу:** [FINTECH_CONTRACT_AUDIT_2026-11-21.md](docs/verification/FINTECH_CONTRACT_AUDIT_2026-11-21.md) сопоставляет реализованный код со спецификацией среды, оценщика и генератора, отмечает допущения и задачи, требующие проверки по оригинальному приложению FinTech. Она не является официальной сертификацией.
+
+**Ниже содержатся разделы предыдущих этапов.** Они описывают состояние кода на момент создания и могут указывать, что split/refund или другие сценарии «ещё не реализованы». Для актуальных v2 сценариев см. [V2_CAUSAL_PAIRS](docs/verification/V2_CAUSAL_PAIRS.md), [OFFLINE_RELEASE_GATE](docs/verification/OFFLINE_RELEASE_GATE.md) и [финальный handoff](docs/verification/FINAL_SUBMISSION_HANDOFF_2026-11-21.md).
 
 ## Role 3 canonical judge runtime (21 November 2026)
 
 The organizer entry points are now `judge_adapter.generate_episode(seed, config, output_dir)`, `judge_adapter.make_env()` and `judge_adapter.score_episode(episode_dir, findings, inspection_steps)`. The judge environment accepts `{name,args}`, supports closed/train modes and externally supplied episodes without regenerating them, and provides deterministic canonical pagination and per-step trajectories. Financial generation and scoring remain delegated to the existing owners.
 
-For verification, install test-only dependencies with `python -m pip install -r requirements-role3-test.txt`, then run `python -m pytest -q -rs` and `python -m ledgergym.role3_mirror`. Runtime uses the Python standard library. Linux CI ran the complete suite, including the pinned Docker cases and restricted demo. See the [integration report](docs/ROLE3_INTEGRATION_READINESS.md) for the tested company and packaging changes.
+For verification, install test-only dependencies with `python -m pip install -r requirements-role3-test.txt`, then run `python -m pytest -q -rs` and `python -m ledgergym.role3_mirror`. Runtime itself has no third-party Python dependencies. These are local checks; they do not certify financial data generation or unavailable container isolation.
 
 Run `python -m ledgergym.role3_demo local --trajectory trajectories.jsonl` for inspect/document/calculator/submit/replay. With Docker and the exact image documented below already present, run `python -m ledgergym.role3_demo restricted --episode PATH --trajectory trajectories.jsonl` for the actual file-fed closed policy path. Missing Docker/image produces NOT_RUN; there is no insecure subprocess fallback.
 
 Protocol, compatibility and trust boundaries: [docs/INTERFACES.md](docs/INTERFACES.md). Measured results: [Phase 1](docs/ROLE3_PHASE1_VERIFICATION.md), [security](docs/ROLE3_PHASE2_SECURITY.md), [final verification](docs/ROLE3_FINAL_VERIFICATION.md). Generator/matcher/provenance limitations remain material; this change does not declare the entire project competition-ready.
 
-LedgerGym — проект синтетической RL-среды для финансового аудита. Репозиторий содержит **начальный прототип**, а не завершённое конкурсное решение. Текущий срез создаёт малый детерминированный пример, предоставляет ограниченные инструменты чтения и расчёта и оценивает находки по доказательствам и формуле проекта.
-
 **Ограничение безопасности:** обычная среда и callback оценщика выполняются в одном процессе и не изолируют недоверенного агента. Экспериментальный `isolated_runner` запускает агент в ограниченном Docker-контейнере, но ещё требует независимого аудита и проверки на инфраструктуре жюри; его нельзя считать доказанной защитой для закрытой конкурсной оценки. См. `docs/STATUS.md`.
+
+## Продолжение по мастер-плану v2
+
+Добавлен внутренний `payment_matching`: полные/частичные оплаты, несколько платежей на invoice, split payment, сохранение свободного остатка и явная неоднозначность. Он проверяет контрагента/дату/валюту, не угадывает ссылку по сумме и не выбирает между одновременно конкурирующими платежами по ID. Проверка подключена к чистой company-истории перед fault injection; публичные данные и reward сохранены. [Спецификация matching](docs/MATCHING_SPEC.md), [каталог сценариев](docs/SCENARIO_CATALOG.md), [статус плана v2](docs/MASTER_PLAN_V2_STATUS.md).
+
+Генератор пока не создаёт split/overpayment hard negatives; refunds и cross-currency allocation новым модулем не поддерживаются. Это отдельный следующий этап финансовой модели. Полный набор: **244 PASS**, новый matching: **43 PASS**, включая матрицу 100 seed. Отчёт: [первый этап плана v2](docs/PLAN2_PAYMENT_MATCHING_REPORT.md).
+
+## Офлайн-прогон компании
+
+Нужен Python; runtime использует только стандартную библиотеку. Команда создаёт **новый** каталог, 10 train + 10 dev эпизодов, прогоняет четыре доверенные baseline-политики и проверяет повтор всех 60 не-oracle траекторий:
+
+```sh
+python -m ledgergym.company_dataset ./ledgergym-company-run --evaluate
+```
+
+Результаты: `index.json`, каталоги train/dev с `public/` и `private/`, `evaluation/summary.json` и `evaluation/trajectories.jsonl`. Существующий каталог не перезаписывается. Это открытый набор для разработки с эталонами и предсказуемым seed, не закрытый тест. Агенту предоставляются только публичные данные через инструменты среды.
+
+Сверочная политика использует тот же публичный проверяющий модуль, который контролирует генератор. Её F1=1 показывает согласованность реализации с заданными правилами, а не независимую способность обобщать. Oracle имеет доступ к эталону только в доверенном оценщике и не экспортирует траектории.
+
+Модель, семантика сумм и ограничения: [COMPANY_MODEL](docs/COMPANY_MODEL.md). Фактические результаты: [отчёт lg-014](docs/LG014_REPORT.md).
 
 ## Проверка
 
@@ -22,10 +91,14 @@ LedgerGym — проект синтетической RL-среды для фи�
 python -m pytest -q
 ```
 
-Среда исполнения прототипа использует только стандартную библиотеку Python. Установка pytest и его зависимостей может требовать сети; итоговая офлайн-сборка ещё не подготовлена. Проверенные версии и команды фиксируются в отчёте задачи, а не предполагаются для других окружений.
+Среда исполнения использует только стандартную библиотеку Python. В lg-015 проверена CPython 3.11.11, добавлены wheel/sdist и фиксированные зависимости с SHA-256. Инструкция установки из локальных wheels: [OFFLINE_INSTALL](docs/OFFLINE_INSTALL.md). Сборка полного каталога: `python scripts/build_offline_bundle.py <wheelhouse> <новый-каталог>`; предварительно установить `requirements-build.lock`. Реестр сторонних компонентов и копии лицензий: [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md).
+
+Фактическая проверка установленного пакета: **201 PASS**, включая семь Docker-тестов; Linux arm64 без сети: **194 PASS / 7 Docker SKIP** (вложенный daemon не предоставляется), генерация 10+10 и 60/60 replay. Детали и ограничения: [отчёт lg-015](docs/LG015_REPORT.md).
 
 ## Текущая реализация и ограничения
 
+- `ledgergym/company_world.py`, `company_checks.py`: согласованная модель начислений, управляемые ошибки, закрытый журнал изменений и проверка по публичным фактам с рациональной арифметикой, независимой от Decimal генератора.
+- `ledgergym/company_dataset.py`: воспроизводимые 10 train + 10 dev эпизодов размера из мастер-спецификации и опциональный офлайн-прогон.
 - `ledgergym/world.py`, `payment_world.py`, `fx_world.py`, `period_world.py`: небольшие самостоятельные генераторы четырёх типов ошибок и корректных контролей с предварительными финансовыми проверками. Это не полный конкурсный генератор.
 - `ledgergym/episode_io.py`: сохранение шести публичных файлов и отдельных truth/provenance с воспроизводимым содержимым; разделение каталогов не защищает данные от недоверенного процесса.
 - `ledgergym/generator.py` и `ledgergym/compound_world.py`: единый конфиг для четырёх типов и двух небольших связанных примеров с независимыми переключателями дефектов.
@@ -36,7 +109,7 @@ python -m pytest -q
 - `docs/INTERFACES.md`: **неутверждённые** интерфейсные решения и нерешённые вопросы.
 - `docs/STATUS.md`: оставшаяся работа и ограничения.
 
-Полный масштабируемый генератор, расширенные compound-сценарии, разнообразные hard negatives, независимый self-check, 20 конкурсных эпизодов, полноценная независимая оценка baseline, безопасные trajectories и конкурсные материалы пока отсутствуют. Имеющиеся четыре типа — небольшие фиксированные примеры, не полноценное покрытие P0. Официальные PDF не были доступны в сеансе; контракт должен быть сверен с ними. Не интерпретируйте синтетические записи или результаты как профессиональное аудиторское заключение.
+Модель ограничена начислениями по услугам и платежами в тот же день, KZT/USD и фиксированным смещением +05:00. Она не охватывает налоги, возвраты и курсовые разницы между датой начисления и датой оплаты. Независимый человеческий финансовый/security review, проверка окружения жюри, выбор лицензии собственного кода и конкурсные материалы ещё не завершены. Официальные PDF не были доступны; дополнительные поля и семантика сумм требуют сверки. Формула reward не менялась.
 
 ## Происхождение и ИИ
 
@@ -91,4 +164,16 @@ observation, info = env.reset(seed=42, config={"scenario": "duplicate_invoice", 
 page, reward, terminated, truncated, info = env.step({"action": "list_records", "table": "invoices"})
 ```
 
-Для сохранённых действий baseline: `replay_actions(env, actions, seed=42, config=config)` из `ledgergym.replay`. Используйте тот же seed/config, что и при построении исходного эпизода. Ссылки вида `cursor={"from_step":N}` разрешает адаптер replay; непосредственный step принимает только строковый курсор текущего reset. Seed/config не сохраняются в агентской траектории. Режим `LedgerSandbox(public, evaluator)` для загруженного эпизода допускает только `reset()` без параметров генерации. Полный контракт и миграция: `docs/INTERFACES.md`, версия 0.3.
+Для сохранённых действий baseline: `replay_actions(env, actions, seed=42, config=config)` из `ledgergym.replay`. Используйте тот же seed/config, что и при построении исходного эпизода. Ссылки вида `cursor={"from_step":N}` разрешает адаптер replay; непосредственный step принимает только строковый курсор текущего reset. Seed/config не сохраняются в агентской траектории. Режим `LedgerSandbox(public, evaluator)` для загруженного эпизода допускает только `reset()` без параметров генерации. Полный контракт и миграция: `docs/INTERFACES.md`, версия 0.4.
+
+Для новой модели в reset передайте, например:
+
+```python
+observation, info = env.reset(seed=42, config={
+    "scenario": "company", "postings": 800, "documents": 100,
+    "faults": {"reporting_period": 1},
+    "compounds": {"fx_allocation": 1, "duplicate_allocation": 1},
+})
+```
+
+Для экспорта с закрытой историей внедрений используйте `build_company(seed, config)` из `ledgergym.company_world` (config без scenario): он возвращает public, truth, provenance. Передайте provenance в `export_episode(..., seed=seed, provenance=provenance)`. Генерация через обычный `generate_episode` сохраняет прежний API из двух результатов.

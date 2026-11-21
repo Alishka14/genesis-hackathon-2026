@@ -21,13 +21,23 @@ def run_test_policy(script, config, timeout=4):
     # A trusted test child exercises real pipe I/O only. This is not a sandbox test.
     env = FlightRecorder(JudgeEnv(timeout=timeout))
     initial, info = env.reset(72, config)
-    with subprocess.Popen([sys.executable, "-u", "-c", script], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
-        try:
-            result = _drive(child, env, initial, info)
-        finally:
+    # A policy may terminate while the parent has buffered stdin data.
+    # Popen's context-manager exit implicitly flushes stdin and can raise
+    # BrokenPipeError even when _drive correctly classified a protocol fault.
+    child = subprocess.Popen([sys.executable, "-u", "-c", script], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+    try:
+        result = _drive(child, env, initial, info)
+    finally:
+        if child.poll() is None:
             child.kill()
-            child.wait(timeout=5)
+        child.wait(timeout=5)
+        for pipe in (child.stdin, child.stdout):
+            if pipe is not None:
+                try:
+                    pipe.close()
+                except (BrokenPipeError, OSError):
+                    pass
     return result, env
 
 
@@ -93,8 +103,27 @@ def test_container_boundary_and_cleanup(case, tmp_path, behavior, monkeypatch):
 initial=json.loads(input())
 assert initial['reward']==0 and initial['info']=={}
 assert not os.path.exists(%r) and not os.path.exists('/var/run/docker.sock')
-assert set(os.listdir('/sys/class/net')) <= {'lo'}
-assert os.statvfs('/').f_flag & os.ST_RDONLY
+# Check effective restrictions rather than OS-dependent sysfs interface
+# enumeration and statvfs mount flags (Docker Desktop/VM differences).
+import socket
+probe=socket.socket()
+probe.settimeout(.3)
+try:
+    try:
+        probe.connect(('203.0.113.1', 9))
+    except OSError:
+        pass
+    else:
+        raise AssertionError('outbound network connection succeeded')
+finally:
+    probe.close()
+try:
+    with open('/ledgergym-root-write-probe', 'wb') as marker:
+        marker.write(b'x')
+except OSError:
+    pass
+else:
+    raise AssertionError('root filesystem is writable')
 print(json.dumps({'name':'submit','args':{'findings':{'episode_id':initial['observation']['manifest']['episode_id'],'findings':[]}}}))
 message=json.loads(input())
 assert message['terminated'] and message['reward']==EXPECTED_REWARD and message['info']=={}

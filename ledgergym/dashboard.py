@@ -177,6 +177,21 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
             self._send(code, payload, "application/json; charset=utf-8")
 
         def do_GET(self):
+            # A loopback listening address alone does not stop DNS rebinding:
+            # reject requests addressed to arbitrary external hostnames.
+            host = self.headers.get("Host", "")
+            port = self.server.server_port
+            allowed_hosts = {
+                "127.0.0.1", "localhost",
+                f"127.0.0.1:{port}", f"localhost:{port}",
+            }
+            origin = self.headers.get("Origin")
+            allowed_origins = {
+                f"http://127.0.0.1:{port}", f"http://localhost:{port}",
+            }
+            if host not in allowed_hosts or (origin and origin not in allowed_origins):
+                self._json(403, {"error": "local_origin_required"})
+                return
             url = urlsplit(self.path)
             path = url.path
             try:

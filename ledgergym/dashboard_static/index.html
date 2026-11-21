@@ -20,6 +20,7 @@
         <a class="nav-link is-active" href="#overview"><span aria-hidden="true">◈</span> Обзор</a>
         <a class="nav-link" href="#benchmark"><span aria-hidden="true">▥</span> Benchmark</a>
         <a class="nav-link" href="#explorer"><span aria-hidden="true">▤</span> Company Explorer</a>
+        <a class="nav-link" href="#findings"><span aria-hidden="true">⊕</span> Audit Findings</a>
         <a class="nav-link" href="#replay"><span aria-hidden="true">↻</span> Agent Replay</a>
         <a class="nav-link" href="#architecture"><span aria-hidden="true">◇</span> Архитектура</a>
       </nav>
@@ -90,9 +91,24 @@
         </section>
 
 
+        <section class="panel findings-panel" id="findings" aria-label="Результаты публичного аудита">
+          <div class="panel-head explorer-header">
+            <div><div class="section-kicker">EVIDENCE / 04</div><h2>Audit Findings</h2>
+              <p class="panel-sub">Детерминированная сверка публичных документов выбранного эпизода. Каждый вывод связан с доступными доказательствами.</p>
+            </div>
+            <span class="pill subtle">PUBLIC RECONCILIATION</span>
+          </div>
+          <div class="findings-topline">
+            <div class="findings-total"><strong id="findings-count">—</strong><span>найдено расхождений</span></div>
+            <div class="findings-caption" id="findings-scope">Выбери эпизод в Company Explorer</div>
+          </div>
+          <div id="findings-list" class="findings-grid" aria-live="polite"><div class="loading">Загрузка результатов сверки…</div></div>
+          <p class="policy-note">Эти находки получены из публичной финансовой модели с помощью детерминированного checker. Они не доказывают качество автономного агента на неизвестных данных и не раскрывают скрытый truth оценщика.</p>
+        </section>
+
         <section class="panel replay-panel" id="replay" aria-label="Воспроизведение расследования">
           <div class="panel-head replay-heading">
-            <div><div class="section-kicker">INVESTIGATION / 04</div><h2>Agent Replay</h2>
+            <div><div class="section-kicker">INVESTIGATION / 05</div><h2>Agent Replay</h2>
               <p class="panel-sub">Пошаговое воспроизведение действий baseline на выбранном эпизоде. Только синтетические данные.</p></div>
             <span class="pill subtle">RECORDED · READ ONLY</span>
           </div>
@@ -130,7 +146,7 @@
           </div>
         </section>
 
-        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 05</div><h2>Как устроен LedgerGym</h2></div></div>
+        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 06</div><h2>Как устроен LedgerGym</h2></div></div>
           <div class="architecture-grid">
             <div class="arch-step"><span class="arch-number">01</span><div><h3>LedgerWorld</h3><p>Синтетические бухгалтерские операции: счета, оплаты, FX, периоды, чистые и ошибочные случаи.</p></div></div>
             <div class="arch-step"><span class="arch-number">02</span><div><h3>LedgerSandbox</h3><p>Ограниченные действия расследования, budget и воспроизводимые переходы среды.</p></div></div>

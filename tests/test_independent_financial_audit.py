@@ -73,7 +73,7 @@ def test_independent_audit_does_not_depend_on_private_truth():
 def test_independent_balance_check_fails_if_postings_do_not_balance():
     public, _, _ = build_company(81, {})
     changed = copy.deepcopy(public)
-    changed["tables"]["ledger"][0]["debit_minor"] += 7
+    next(row for row in changed["tables"]["ledger"] if row["debit_minor"] > 0)["debit_minor"] += 7
     with pytest.raises(ValueError, match="balance"):
         audit_company_public(changed)
 

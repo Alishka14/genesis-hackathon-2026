@@ -1,5 +1,7 @@
 # LedgerGym — три дополнительных диагностических модуля
 
+**Актуализация реализации (21.11.2026):** частично реализовано в ветке agent/research/lg-030-034-diagnostics; pytest на текущем HEAD ещё NOT_RUN. Код: ledgergym/research_diagnostics.py, research_robustness.py, research_report.py, cab_company_pairs.py, cab_invariance.py. Указанные далее «предлагаемые» алгоритмы сохраняют историческое описание от 19.11; текущие ограничения и команды приведены в [отчёте реализации](verification/GATE3_RESEARCH_2026-11-21.md).
+
 **Статус:** зафиксированный проект спецификации / NOT IMPLEMENTED.
 **Дата:** 2026-11-19. **Ветка:** `agent/planning/lg-001`.
 **Рамки:** расширения не заменяют официальный контракт GENESIS FinTech, не меняют mandatory 4 fault types, 1:1 matching, F1 или reward. До подтверждения `docs/SCOPE.md`, правил AI/LLM и командного разрешения конкурсный код не пишем.

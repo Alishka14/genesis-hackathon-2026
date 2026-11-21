@@ -36,6 +36,9 @@ def evaluate_fixture_dataset(dataset, output):
     v2_labels = {'train': {'clean': 0, 'faulty': 0},
                  'dev': {'clean': 0, 'faulty': 0}}
     trajectories = []
+    # Full, *trusted development-only* transition log. The canonical closed
+    # agent protocol never exposes final reward or evaluator feedback.
+    full_events = []
     seen_ids = set()
     for split in ('train', 'dev'):
         entries = index[split]
@@ -91,10 +94,30 @@ def evaluate_fixture_dataset(dataset, output):
                         measures['f1_sum'] += score['f1']
                         measures['reward_sum'] += score['reward']
                 if result['trajectory'] is not None:
-                    env = LedgerSandbox(public, lambda answers, steps: evaluate(truth['issues'], answers, public_ids, steps))
-                    replayed = replay_actions(env, result['trajectory'])['steps'][-1]
+                    env = LedgerSandbox(
+                        public, lambda answers, steps: evaluate(
+                            truth['issues'], answers, public_ids, steps),
+                        # Reproducible development cursor tokens only. The
+                        # production judge retains its opaque cursor policy.
+                        cursor_factory=lambda table, offset: f'dev-cursor:{table}:{offset}',
+                    )
+                    replay = replay_actions(env, result['trajectory'])
+                    replayed = replay['steps'][-1]
                     if not replayed[2] or replayed[3] or replayed[4].get('score') != score:
                         raise ValueError('trajectory replay did not reproduce the score')
+                    if len(replay['steps']) != len(result['trajectory']):
+                        raise ValueError('missing replay transition')
+                    if len(replay['executed_actions']) != len(replay['steps']):
+                        raise ValueError('missing resolved replay action')
+                    for step_no, (action, transition) in enumerate(
+                            zip(replay['executed_actions'], replay['steps']), start=1):
+                        observation, reward, terminated, truncated, _ = transition
+                        full_events.append({
+                            'episode_id': entry['episode_id'], 'split': split,
+                            'policy': name, 'step': step_no, 'action': action,
+                            'observation': observation, 'reward': reward,
+                            'terminated': terminated, 'truncated': truncated,
+                        })
                     trajectories.append({'episode_id': entry['episode_id'], 'split': split, 'policy': name,
                                          'trajectory_format': 'ledgergym-actions-v1', 'actions': result['trajectory']})
     for group in (totals, *splits.values()):
@@ -130,6 +153,43 @@ def evaluate_fixture_dataset(dataset, output):
             'generalization or hidden evaluation.')
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
+    # A separate, never-agent-mounted artifact: public observations with the
+    # development reward, but no truth/provenance/evaluator-only info fields.
+    (output / 'trajectories_full.jsonl').write_text(
+        ''.join(json.dumps(event, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
+    # Contest-facing OPEN-development trace schema, stored in its own folder
+    # to avoid silently breaking consumers of the legacy action-only
+    # output/trajectories.jsonl. Reward is observable only in the trusted
+    # open-development evaluator, never supplied as a closed-mode tool result.
+    submission = output / 'submission'
+    submission.mkdir(mode=0o700)
+    public_fields = ('episode_id', 'step', 'action', 'observation',
+                     'reward', 'terminated', 'truncated')
+    (submission / 'trajectories.jsonl').write_text(
+        ''.join(json.dumps({key: event[key] for key in public_fields},
+                           sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
+    first_line = 1
+    trace_index = []
+    for record in trajectories:
+        count = len(record['actions'])
+        trace_index.append({
+            'episode_id': record['episode_id'],
+            'split': record['split'], 'policy': record['policy'],
+            'first_line': first_line, 'steps': count,
+        })
+        first_line += count
+    if first_line != len(full_events) + 1:
+        raise ValueError('submission trace index incomplete')
+    (submission / 'trace_index.json').write_text(
+        json.dumps({
+            'format': 'ledgergym-public-development-transitions-v1',
+            'private_truth_exported': False,
+            'closed_mode': False,
+            'trajectories': trace_index,
+        }, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n',
+        encoding='utf-8')
     return summary
 
 

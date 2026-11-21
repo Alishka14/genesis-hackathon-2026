@@ -2,6 +2,23 @@
 
 LedgerGym генерирует согласованные синтетические истории, предоставляет ограниченные инструменты расследования и оценивает находки по доказательствам. Модель `company` поддерживает 200–2000 проводок, 20–200 документов и 0–12 ошибок четырёх типов, включая два связанных сценария. Конкурсный P0 ещё не завершён: требуется проверка целевого окружения, изоляции и соответствия первичным правилам.
 
+## Исследовательские модули и полный submission trace (новая ветка, не проверена на Mac)
+
+В ветке agent/research/lg-030-034-diagnostics реализованы: evaluator-only EQT и FAA, 10+10 aggregate research report, scorer invariance/дедуктивный shrinking, CAB causal clean/fault для четырёх v1 типов, CAD перестановка публичных таблиц и биективное переименование всех opaque ID. Полный обязательный формат записывается **отдельно** в evaluation/submission/trajectories.jsonl с trace_index.json; прежний evaluation/trajectories.jsonl оставлен переносимым action-only. В Dashboard необязательный режим --research-report показывает только агрегаты, связанные SHA-256 с выбранным датасетом.
+
+Создание 10+10 и исследования (все каталоги должны быть новыми):
+
+~~~bash
+RUN="$HOME/ledgergym-dev-$(date +%Y%m%d%H%M%S)"
+RESEARCH="$HOME/ledgergym-research-$(date +%Y%m%d%H%M%S)"
+python3.11 -m ledgergym.company_dataset "$RUN" --evaluate --settlement-hard-negatives
+python3.11 -m ledgergym.research_report "$RUN" "$RESEARCH"
+python3.11 -m ledgergym.cab_company_pairs
+python3.11 -m ledgergym.dashboard --dataset "$RUN" --research-report "$RESEARCH/research_summary.json"
+~~~
+
+Тесты этой ветки **NOT_RUN** на локальном Mac. Рассматриваем EQT/FAA как доверенные исследовательские постпроцессоры, не как официальный reward или независимый benchmark. Детали и остаток работ: [GATE3_RESEARCH_2026-11-21](docs/verification/GATE3_RESEARCH_2026-11-21.md).
+
 ## Текущая сборка и локальная веб-панель (PR LG-029; требует проверки)
 
 Это **дополнительная ветка разработки**, пока не объединённая в `main`. Финансовое ядро, scorer и официальный reward не менялись ради интерфейса. В панели доступна только локальная открытая выборка; она предназначена для просмотра синтетических данных и агрегированных baseline-результатов, а **не** для выдачи скрытой оценки или обучения модели.

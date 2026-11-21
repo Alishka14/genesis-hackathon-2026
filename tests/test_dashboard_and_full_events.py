@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 import threading
+
+import pytest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -231,6 +233,37 @@ def test_public_findings_match_known_synthetic_training_cases_without_truth_api(
                     else:
                         clean += 1
             assert faulty >= 12 and clean >= 2
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_dashboard_rejects_symlinked_summary_before_serving(tmp_path):
+    root, _ = _dataset(tmp_path)
+    summary = root / "evaluation" / "summary.json"
+    outside = tmp_path / "outside-summary.json"
+    outside.write_bytes(summary.read_bytes())
+    summary.unlink()
+    summary.symlink_to(outside)
+    with pytest.raises(OSError, match="linked or escaped"):
+        dashboard_server(root, port=0)
+
+
+def test_dashboard_fails_on_manifest_episode_id_mismatch(tmp_path):
+    root, _ = _dataset(tmp_path)
+    entry = root / "train" / "episode-00" / "public" / "manifest.json"
+    manifest = json.loads(entry.read_text())
+    manifest["episode_id"] = "incorrect-id"
+    entry.write_text(json.dumps(manifest))
+    with dashboard_server(root, port=0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            address = "http://127.0.0.1:" + str(server.server_address[1])
+            url = address + "/api/records?split=train&episode=episode-00&table=invoices&page=0"
+            with pytest.raises(HTTPError) as exc:
+                urlopen(url, timeout=10)
+            assert exc.value.code == 400
         finally:
             server.shutdown()
             thread.join(timeout=5)

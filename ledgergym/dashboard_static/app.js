@@ -2,7 +2,10 @@
 
 // Only aggregate metrics and public episode files are requested. No truth.
 const $ = (id) => document.getElementById(id);
-const state = { episodes: { train: [], dev: [] }, page: 0, loading: false, requestId: 0 };
+const state = {
+  episodes: { train: [], dev: [] }, page: 0, loading: false, requestId: 0,
+  replaySteps: [], replayStep: 0, replayRequestId: 0, replayFormat: null,
+};
 const labels = {
   reconciliation: "Reconciliation",
   oracle: "Oracle (upper bound)",
@@ -83,6 +86,7 @@ function updateEpisodes() {
   }
   state.page = 0;
   void loadRecords();
+  void loadReplay();
 }
 
 function cellValue(value) {
@@ -155,11 +159,107 @@ async function loadRecords() {
   }
 }
 
+function displayReplayStep() {
+  const steps = state.replaySteps;
+  const current = steps[state.replayStep];
+  const buttons = $("replay-steps").querySelectorAll("button");
+  buttons.forEach((button, index) => {
+    button.classList.toggle("is-selected", index === state.replayStep);
+    button.setAttribute("aria-current", index === state.replayStep ? "step" : "false");
+  });
+  if (!current) {
+    setText("replay-action", "—");
+    setText("replay-description", "Нет записанных действий.");
+    setText("replay-position", "—");
+    $("replay-prev").disabled = true;
+    $("replay-next").disabled = true;
+    return;
+  }
+  const action = String(current.action ?? "unknown_action");
+  setText("replay-position", String(state.replayStep + 1) + " / " + String(steps.length));
+  setText("replay-action", action);
+  let description = "Шаг проверки финансовых доказательств.";
+  if (action === "list_records") {
+    description = "Чтение публичных записей таблицы: " + String(current.table ?? "—");
+  } else if (action === "get_document") {
+    description = "Чтение документа, доступного агенту.";
+  } else if (action === "get_record") {
+    description = "Чтение одной публичной записи.";
+  } else if (action === "calculator") {
+    description = "Проверка арифметического выражения.";
+  } else if (action === "submit") {
+    description = "Отправка находок на оценивание. В закрытом режиме результат скрыт от агента.";
+  }
+  setText("replay-description", description);
+  setText("replay-records", current.records_seen ?? "—");
+  setText("replay-findings", current.findings_submitted ?? "—");
+  setText("replay-reward",
+    typeof current.reward === "number" && Number.isFinite(current.reward)
+      ? fmt(current.reward, 4) : "—");
+  setText("replay-status",
+    current.terminated === true ? "Завершено" :
+      current.truncated === true ? "Остановлено" :
+        current.terminated === null ? "Actions only" : "Продолжение");
+  $("replay-prev").disabled = state.replayStep === 0;
+  $("replay-next").disabled = state.replayStep === steps.length - 1;
+}
+
+function showReplay(report) {
+  const parent = $("replay-steps");
+  parent.replaceChildren();
+  state.replaySteps = Array.isArray(report.steps) ? report.steps : [];
+  state.replayStep = 0;
+  state.replayFormat = report.format;
+  for (const [index, step] of state.replaySteps.entries()) {
+    const button = el("button", "replay-event");
+    button.type = "button";
+    const count = el("span", "replay-event-count", String(index + 1).padStart(2, "0"));
+    const action = el("strong", "", String(step.action ?? "unknown"));
+    const hint = el("small", "", String(step.table ?? (step.terminated ? "TERMINATED" : "ACTION")));
+    button.append(count, action, hint);
+    button.addEventListener("click", () => {
+      state.replayStep = index;
+      displayReplayStep();
+    });
+    parent.append(button);
+  }
+  setText("replay-mode", report.format === "full_transitions"
+    ? "Полные переходы · development"
+    : "Только actions · legacy");
+  displayReplayStep();
+}
+
+async function loadReplay() {
+  const split = $("split-select").value;
+  const episode = $("episode-select").value;
+  const policy = $("replay-policy").value;
+  const request = ++state.replayRequestId;
+  state.replaySteps = [];
+  setText("replay-mode", "Загрузка траектории…");
+  $("replay-steps").replaceChildren(el("div", "loading", "Чтение записанных шагов…"));
+  $("replay-prev").disabled = true;
+  $("replay-next").disabled = true;
+  if (!episode) return;
+  try {
+    const query = new URLSearchParams({ split, episode, policy });
+    const report = await getJson("/api/replay?" + query.toString());
+    if (request !== state.replayRequestId) return;
+    showReplay(report);
+  } catch (error) {
+    if (request !== state.replayRequestId) return;
+    setText("replay-mode", "Траектория недоступна");
+    setText("replay-description", "Ошибка загрузки: " + String(error.message));
+    $("replay-steps").replaceChildren(el("div", "loading", "Траектория не найдена."));
+    displayReplayStep();
+  }
+}
+
 function bindControls() {
   $("split-select").addEventListener("change", updateEpisodes);
   $("episode-select").addEventListener("change", () => {
     state.page = 0;
     void loadRecords();
+    void loadReplay();
   });
   $("table-select").addEventListener("change", () => {
     state.page = 0;
@@ -175,6 +275,19 @@ function bindControls() {
     if (!state.loading) {
       state.page += 1;
       void loadRecords();
+    }
+  });
+  $("replay-policy").addEventListener("change", () => void loadReplay());
+  $("replay-prev").addEventListener("click", () => {
+    if (state.replayStep > 0) {
+      state.replayStep -= 1;
+      displayReplayStep();
+    }
+  });
+  $("replay-next").addEventListener("click", () => {
+    if (state.replayStep + 1 < state.replaySteps.length) {
+      state.replayStep += 1;
+      displayReplayStep();
     }
   });
   const nav = document.querySelectorAll(".nav-link");

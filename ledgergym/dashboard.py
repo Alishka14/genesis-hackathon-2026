@@ -25,6 +25,92 @@ ASSETS = {
 TABLES = {"ledger", "invoices", "payments", "fx"}
 SPLITS = {"train", "dev"}
 KINDS = {"synthetic_company_development", "synthetic_company_development_with_settlements"}
+REPLAY_POLICIES = {"reconciliation", "seeded_random", "mark_all"}
+PUBLIC_FILES = ("ledger.csv", "invoices.jsonl", "payments.jsonl",
+                "fx.csv", "policy.json", "manifest.json")
+
+
+def _public_folder(root: Path, split: str, episode: str) -> Path:
+    """Reject symlink escapes even for locally supplied development datasets."""
+    candidate = root / split / episode
+    folder = candidate / "public"
+    if candidate.is_symlink() or folder.is_symlink():
+        raise OSError("linked episode or public directory")
+    if not folder.resolve(strict=True).is_relative_to(root):
+        raise OSError("episode escapes dataset")
+    for filename in PUBLIC_FILES:
+        if (folder / filename).is_symlink():
+            raise OSError("linked public source file")
+    return folder
+
+
+def _replay_snapshot(root: Path, episode_id: str, split: str, policy: str) -> dict:
+    """Extract *display-only* non-oracle steps without sending raw observations.
+
+    A newer dataset contains full transition logs. An older dataset only has
+    portable action traces; represent missing observations honestly.
+    """
+    full = root / "evaluation" / "trajectories_full.jsonl"
+    actions_only = root / "evaluation" / "trajectories.jsonl"
+    use_full = full.exists() or full.is_symlink()
+    path = full if use_full else actions_only
+    if path.is_symlink() or not path.resolve(strict=True).is_relative_to(root):
+        raise OSError("linked or escaped trajectory data")
+    if path.stat().st_size > 128 * 1024 * 1024:
+        raise OSError("trajectory report too large")
+    steps = []
+    with path.open(encoding="utf-8") as reader:
+        for line in reader:
+            entry = json.loads(line)
+            if (entry.get("episode_id") != episode_id
+                    or entry.get("split") != split
+                    or entry.get("policy") != policy):
+                continue
+            if use_full:
+                action = entry.get("action")
+                observation = entry.get("observation")
+                if (not isinstance(action, dict) or not isinstance(observation, dict)
+                        or type(entry.get("step")) is not int
+                        or not 1 <= entry["step"] <= 100):
+                    raise OSError("invalid full trajectory")
+                kind = action.get("action")
+                rows = observation.get("records")
+                step = {
+                    "step": entry["step"], "action": kind,
+                    "table": action.get("table") if kind in ("list_records", "get_record") else None,
+                    "records_seen": len(rows) if isinstance(rows, list) else None,
+                    "findings_submitted": len(action.get("findings", [])) if kind == "submit" and isinstance(action.get("findings"), list) else None,
+                    "terminated": bool(entry.get("terminated")),
+                    "truncated": bool(entry.get("truncated")),
+                    "reward": entry.get("reward"),
+                }
+                if steps and step["step"] != steps[-1]["step"] + 1:
+                    raise OSError("noncontiguous trajectory")
+                if not steps and step["step"] != 1:
+                    raise OSError("unexpected initial step")
+                steps.append(step)
+            else:
+                actions = entry.get("actions")
+                if not isinstance(actions, list) or len(actions) > 100:
+                    raise OSError("invalid legacy trajectory")
+                for index, action in enumerate(actions, start=1):
+                    if not isinstance(action, dict):
+                        raise OSError("invalid legacy action")
+                    kind = action.get("action")
+                    steps.append({
+                        "step": index, "action": kind,
+                        "table": action.get("table") if kind in ("list_records", "get_record") else None,
+                        "records_seen": None,
+                        "findings_submitted": len(action.get("findings", [])) if kind == "submit" and isinstance(action.get("findings"), list) else None,
+                        "terminated": None, "truncated": None, "reward": None,
+                    })
+            if len(steps) > 100:
+                raise OSError("too many trajectory steps")
+    if not steps:
+        raise ValueError("trajectory not found")
+    return {"episode_id": episode_id, "split": split, "policy": policy,
+            "format": "full_transitions" if use_full else "actions_only",
+            "steps": steps}
 
 
 def _dataset(root: Path):
@@ -125,7 +211,7 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                         raise ValueError("page too large")
                     # Never open a caller-controlled path. Explicitly load
                     # ONLY this episode's public/ folder.
-                    folder = root / split / episode / "public"
+                    folder = _public_folder(root, split, episode)
                     public = load_public_episode(folder)
                     rows = public["tables"][table]
                     start = page * 50
@@ -139,6 +225,19 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                         },
                         "accounting_model": public["policy"].get("accounting_model"),
                     })
+                elif path == "/api/replay":
+                    query = parse_qs(url.query, keep_blank_values=True)
+                    if set(query) != {"split", "episode", "policy"}:
+                        raise ValueError("expected split, episode and policy")
+                    if any(len(values) != 1 for values in query.values()):
+                        raise ValueError("duplicate replay parameter")
+                    split, episode, policy = (query[key][0]
+                                             for key in ("split", "episode", "policy"))
+                    if (split not in SPLITS or episode not in episodes[split]
+                            or policy not in REPLAY_POLICIES):
+                        raise ValueError("unsupported replay selection")
+                    self._json(200, _replay_snapshot(
+                        root, episodes[split][episode]["episode_id"], split, policy))
                 else:
                     self._json(404, {"error": "not_found"})
             except json.JSONDecodeError:

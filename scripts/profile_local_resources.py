@@ -9,7 +9,10 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import resource
+try:
+    import resource
+except ImportError:  # Windows: unavailable; fail gracefully if invoked.
+    resource = None
 import subprocess
 import sys
 import time
@@ -22,7 +25,7 @@ def profile(command, *, timeout, report_path, wall_limit=None, memory_limit=None
         raise ValueError("wall limit must be positive")
     if memory_limit is not None and memory_limit <= 0:
         raise ValueError("memory limit must be positive")
-    if not sys.platform.startswith(("darwin", "linux")):
+    if resource is None or not sys.platform.startswith(("darwin", "linux")):
         raise RuntimeError("resource profiling supports macOS/Linux only")
     report_path = Path(report_path).expanduser().resolve()
     if report_path.exists():

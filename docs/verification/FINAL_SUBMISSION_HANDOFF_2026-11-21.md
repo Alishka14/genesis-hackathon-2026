@@ -1,73 +1,104 @@
-# LedgerGym / GENESIS FinTech — submission handoff (draft)
+# LedgerGym — финальная передача материалов GENESIS FinTech 2026
 
-Date: 21 Nov 2026. Source of deadline and delivery requirements: `docs/SUBMISSION_CHECKLIST.md` citing the uploaded 2026 competition regulation. **Deadline stated there: 22 Nov 2026, 23:59 Astana time.** This checklist is a handoff only. It neither submits any material nor asserts that the captain has approved a release.
+**Проверенный срез:** 22 ноября 2026 года. **Сдача не подтверждена.**
+Дедлайн по доступному положению: **22 ноября 2026 года, 23:59 по времени Астаны**.
+Отправку выполняет капитан через форму Genesis. Этот файл не отправляет
+заявку и не предоставляет доступ к закрытым ссылкам.
 
-## Proven engineering evidence
+## Единственный подтверждённый технический baseline
 
-| Evidence | Observed result | Limits |
-| --- | --- | --- |
-| Full local integration on macOS, Python 3.14.0 | `success=true`; pytest, mixed generator, causal pairs and tracked-private-files stages PASS | Not GitHub-hosted CI or organizer-certified |
-| Dataset evaluation | 20 train/dev episodes; 8 v1 + 2 v2 per split; 60 replayed trajectories | Development fixture, not blind/hidden benchmark |
-| Causal counterpairs | Six pairs, 12 variants, eight audited fault issues, 0 clean false accusations | Synthetic paired controls only |
-| Real Docker container tests | 22 passed; zero failed/skipped | Local Docker Desktop; separate from integration JSON |
-| Offline installed-wheel gate, CPython 3.11.18 | 9 stages PASS; 45 tests passed without skips; exact demo replay; 145 SHA256-file checks | `pip --no-index` prevents use of PyPI in package installs, does not force kernel network isolation |
-| Canonical demonstration | `VERIFIED_PASS`, four actions, `replay=exact`, F1=1, return=.994, TP=FP=FN=0 | **Clean episode**; does not demonstrate detecting a fault |
-| Git/source provenance | Operator: source tree diff to PR #30 empty; clean `agent/release/lg-027-offline-package` at `b19b889` | New draft submission branch must be reviewed separately |
-| GitHub Actions on later branches | Runner scheduling failures before steps | Issue #29; CI on final head not verified |
+- GitHub: https://github.com/Alishka14/genesis-hackathon-2026
+- `main` после объединения PR #39: `3b25dc0ac298c809d06bcca289bc15c920d9d469`.
+- Полный P0 пройден на **чистом** `a2be0a26ac000f311b1934f25bb741ec929e2931`.
+  Git-дерево указанных двух коммитов идентично. Это подтверждение
+  совпадения **содержимого**, а не отдельный запуск полного P0 на merge SHA.
+- P0: **6/6 PASS**, `success=true`, `docker_isolation_covered=true`.
+  Docker: **22 executed / 0 failed / 0 skipped**.
+  Integration: **20 episodes / 60 exact replays / 6 causal pairs**.
+  Python 3.11.18 installed-wheel: **10/10 stages / 172 tests / 193 verified bundle files**.
+  Наблюдаемый пик дочерней RSS: **197.77 MiB** (не гарантия resource limits жюри).
+- Отдельно проверены EQT, FAA, adversarial и экспортёр: 81/81 тест.
+- Публичный набор 10 train + 10 dev: **60 trajectories, 1,488 transitions,
+  125 files, SHA-256 PASS, `private_truth_exported=false`**.
+  Проверенная локальная папка оператора:
+  `$HOME/ledgergym-final-public-20261121-233236`.
+  **Эта папка пока не загружена в конкурсный Drive.**
+- Эти результаты являются локальными; `contest_certified=false`,
+  `submission_ready=false`, `human_signoff=pending`. Скрытые тесты
+  организаторов и итоговая конкурсная оценка неизвестны.
+- PR #40 (независимый аудит/вариативность) — **draft, NOT_RUN, не включён
+  в проверенную сборку**. PR #41 (объяснения Dashboard и актуализация
+  документации) — **draft, НЕ проверен**. Ничего из этих веток не
+  представляйте как уже сданную/протестированную часть `main`.
 
-**Never represent `contest_certified=false` as competition acceptance.** Synthetic `private/truth.json` files are permitted inside generated local development episodes; keep them out of the Git repository and the video.
+## Что жюри должно открыть: матрица обязательных материалов
 
-## Required captain/owner decisions
+| Материал | Рекомендуемая ссылка | Статус | Действие владельца |
+| --- | --- | --- | --- |
+| Репозиторий | https://github.com/Alishka14/genesis-hackathon-2026 | **PRIVATE, доступ жюри не подтверждён** | Разрешить read-only доступ приглашениями или осознанно изменить visibility |
+| Папка материалов | https://drive.google.com/drive/folders/1D2IKrACmo3F-yh98rn_xkbu1HVEcIKLx | **Только документ, папка закрыта** | Загрузить архив/видео/презентацию, проверить доступ |
+| Документ со ссылками | https://docs.google.com/document/d/1HwtUTB0KqcwLOw1IjjN27FniZnzBKyPySE_Ysk3qNEM/edit | **Черновик** | Заполнить пустые URL, проверить доступ |
+| Публичные данные | локальный `ledgergym-final-public-20261121-233236` | **PASS локально, нет облачной ссылки** | Архивировать только публичный каталог и загрузить |
+| Видео до 3 минут | отсутствует подтверждённая ссылка | **Не готово** | Записать реальную демонстрацию |
+| Презентация до 14 слайдов | редактируемая версия подготовлена в беседе | **Не подтверждена в Drive** | Проверить и загрузить |
+| `LICENSE` собственного кода | файл отсутствует | **Нужно решение правообладателей** | Утвердить текст и атрибуцию, затем повторно проверить итоговый SHA |
+| Капитан / команда | не подтверждены | **Не заполнено** | Фактические имена и вклад: подтверждение команды |
 
-- [ ] Confirm team membership, captain and individual contributions by filenames/modules. Do not invent authorship; verify `docs/SCOPE.md`.
-- [ ] Review and explicitly approve merging stacked PRs **#20, #23, #24, #25, #26, #27, #28, #30** plus this new documentation PR; check the exact integrated main commit and rerun at least the integration gate.
-- [ ] Verify the licensing of original team-authored code and `THIRD_PARTY_NOTICES.md`; include permitted licenses and the source/usage of any outside code or libraries.
-- [ ] Record how AI was used in planning, code generation, testing, review and documentation, and which output the team checked or modified. Do not claim development was completely unaided.
-- [ ] Check public/read-only access to GitHub: repository is currently **private**. Adding a URL alone does not give judges access. Choose visibility or explicit judge invitations in line with team approval.
-- [ ] Record the demo video in `docs/verification/DEMO_RECORDING_2026-11-21.md`; keep it at or below 3:00.
-- [ ] Assemble presentation (recommended <=14 slides): problem, finance evidence, LedgerGym solution, public/private boundaries, architecture, demo, 4 baseline policies, clean/hard-negative examples, causal pairs, observed results, security/offline reproducibility, limitations, responsible AI/OSS disclosures, next steps.
-- [ ] Prepare one Google Drive document with checked links to repo, video, presentation and needed artifacts; test every link in an account with the same permissions as a judge.
-- [ ] Captain submits the Google Drive document URL on `genesis-exe.com` **before 22 Nov 23:59 Astana** and saves the timestamp/confirmation.
+Не выдавайте неизвестные ссылки за существующие. Запрещено публиковать
+локальный `ledgergym-final-data-*`, содержащий `private/truth.json`
+и `private/provenance.json`. Роль официального судьи не требуется для
+проверки публичного синтетического набора.
 
-## Copyable submission document template
+## Формат записи для документа со ссылками
 
 ```text
 GENESIS Hackathon 2026 — FinTech
-Project: LedgerGym
-Team: [verified team name]
-Captain: [verified captain name]
+Проект: LedgerGym
+Команда: [реально зарегистрированное название]
+Капитан: [подтверждённый участник]
 
-Repository: [verified URL, with actual judge access]
-Demo (duration <=3 min): [published video link]
-Presentation: [published slides link]
-Offline technical release: [optional link; tested artifact]
-Documentation and AI/open-source disclosure: [link to README/approved disclosure]
-Verified source commit: [final approved SHA]
-
-Project summary:
-LedgerGym is a synthetic financial-audit environment. It exposes
-bounded tools for inspecting invoices, payments, ledger entries and
-evidence, while keeping evaluator truth outside the untrusted policy.
-It provides repeatable synthetic scenarios, scoring and baseline tests.
-
-Current observed test evidence:
-- Local integration gate: PASS.
-- Local Docker isolation: 22/22 PASS.
-- Offline installed-wheel gate, CPython 3.11.18: 9/9 stages,
-  45/45 installed tests PASS, 145 bundle files hash-checked.
-- Local canonical demo: exact replay, clean episode.
-These do not claim external benchmark or official certification.
-
-Last access check (Astana time): [date/time]
-Submitter and confirmation: [captain fills after submitting]
+GitHub: [проверенная ссылка с доступом жюри]
+Видео (до 3:00): [проверенная ссылка]
+Презентация: [проверенная ссылка]
+Публичный 10+10 dataset: [проверенная ссылка на ТОЛЬКО PUBLIC архив]
+Документация / AI и open-source disclosure: [проверенная ссылка]
+Лицензия собственного кода: [одобренный вариант]
+Проверенный релиз: 3b25dc0ac298c809d06bcca289bc15c920d9d469
+Технический P0 на идентичном дереве a2be0a26ac000f311b1934f25bb741ec929e2931:
+  6/6 PASS; Docker 22/22; offline wheel 172 tests / 193 files;
+  20 episodes / 60 replays / 6 pairs.
+Публичный экспорт: 10 train + 10 dev / 60 trajectories /
+  1488 transitions / 125 files; private_truth_exported=false.
+Ограничение: локальные синтетические проверки, не скрытый benchmark жюри.
+Последняя проверка доступа: [дата, время, проверяющий]
+Подтверждение отправки в Genesis: [заполняет капитан после подачи]
 ```
 
-## Open technical risks
+## Проверка перед нажатием Submit
 
-1. GitHub Actions cannot schedule runners on recent commits; restore and run CI if possible, but do not misrepresent the cause or conflate it with a test assertion failure.
-2. Full installed-wheel tests cover a focused 45-test subset; the separate source suite and real Docker run cover more cases.
-3. Evaluation uses synthetic scenarios and internal public checks; external real-world accuracy and security are not established.
-4. Private truth must never be mounted into an agent container, uploaded in the public demo or committed with source.
-5. New documentation and any subsequent merges move the commit SHA. Track the exact final checked commit.
+1. Согласовать состав команды, реальный вклад авторов, лицензию,
+   `THIRD_PARTY_NOTICES.md` и `docs/PROVENANCE_AND_AI_DISCLOSURE.md`.
+2. Загрузить видео, презентацию и **публичный** архив; никогда не
+   загружать evaluator truth и исходный датасет.
+3. Убедиться, что жюри имеет read-only доступ к **каждой** ссылке.
+   Проверить из аккаунта без прав владельца.
+4. Использовать проверенный `main`; PR #40/41 не сливать без нового
+   focused suite и полного P0. Если меняется код/лицензия после gate,
+   зафиксировать новый SHA и повторить соответствующие проверки.
+5. Капитан отправляет указанную в форме Genesis ссылку до дедлайна и
+   сохраняет подтверждение с датой/временем.
 
-This is a draft handoff intended for human review. No external action has been taken by the documentation process.
+**Демо:** `docs/verification/DEMO_RECORDING_2026-11-21.md` содержит
+актуальный сценарий. В `python3.11 -m ledgergym.role3_demo local`
+эпизод **чистый**: F1=1 на нём не доказывает обнаружение ошибок.
+Отдельная демонстрация `python3.11 -m ledgergym` — доверенный прототип,
+не Docker-изолированная конкурсная оценка.
+
+**Разделение артефактов:** `evaluation/trajectories.jsonl` содержит
+путь действий; `evaluation/trajectories_full.jsonl` — доверенные
+development observations/rewards; `PUBLIC/trajectories.jsonl` +
+`PUBLIC/trace_index.json` — проверенный публичный handoff (60 полных
+записанных траекторий, без private truth). Не смешивать эти три формата.
+
+Этот документ заменяет устаревшие исторические handoff-срезы и
+не является подтверждением от организаторов.

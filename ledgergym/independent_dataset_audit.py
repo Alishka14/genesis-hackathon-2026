@@ -18,6 +18,8 @@ from .independent_finance_audit import audit_company
 
 def audit_dataset(root):
     root = Path(root).expanduser().resolve(strict=True)
+    if not root.is_dir() or any(path.is_symlink() for path in root.rglob("*")):
+        raise ValueError("linked or invalid private dataset")
     index = json.loads((root / "index.json").read_text(encoding="utf-8"))
     if index.get("kind") not in {
         "synthetic_company_development",
@@ -25,15 +27,24 @@ def audit_dataset(root):
     }:
         raise ValueError("not an open synthetic company dataset")
     checked, count_issues, models, clean_count = 0, 0, Counter(), 0
+    seen_paths, seen_ids = set(), set()
     for split in ("train", "dev"):
         entries = index.get(split)
         if not isinstance(entries, list) or len(entries) != 10:
             raise ValueError("expected exactly 10 train + 10 dev episodes")
         for entry in entries:
+            if not isinstance(entry, dict):
+                raise ValueError("malformed index episode")
             path = entry.get("path")
+            episode_id = entry.get("episode_id")
             if not isinstance(path, str) or not re.fullmatch(
                     rf"{split}/episode-[0-9]{{2}}", path):
                 raise ValueError("untrusted index path")
+            if (not isinstance(episode_id, str) or not episode_id
+                    or path in seen_paths or episode_id in seen_ids):
+                raise ValueError("duplicate index path or episode")
+            seen_paths.add(path)
+            seen_ids.add(episode_id)
             target = root / path
             if target.is_symlink() or (target / "private").is_symlink() or (
                     target / "public").is_symlink():

@@ -21,5 +21,8 @@ ledgergym-isolated = "ledgergym.isolated_runner:main"
 packages = ["ledgergym", "examples"]
 py-modules = ["judge_adapter"]
 
+[tool.setuptools.package-data]
+ledgergym = ["dashboard_static/*.html", "dashboard_static/*.css", "dashboard_static/*.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

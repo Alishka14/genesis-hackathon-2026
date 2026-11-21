@@ -1,6 +1,5 @@
 """Trusted judge transport. Only JSON messages cross the policy process boundary."""
 import copy
-from collections import Counter
 import csv
 import hashlib
 import json
@@ -113,12 +112,8 @@ def _load_truth(root):
 
 
 def _scorer(public, truth):
-    ids = set()
-    for table, rows in public["tables"].items():
-        counts = Counter(_record_identifier(table, row) for row in rows)
-        ids.update(key for key, count in counts.items() if count == 1)
-        if table in ("invoices", "payments"):
-            ids.update(row["doc_id"] for row in rows)
+    ids = score.accessible_evidence_ids(public)
+
     def evaluate(findings, steps):
         return score.evaluate(truth["issues"], findings, ids, steps)
     return evaluate

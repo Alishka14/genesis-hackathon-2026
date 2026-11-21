@@ -140,4 +140,33 @@ button,select,a{outline-offset:3px}
 @media(max-width:1220px){.shell{grid-template-columns:210px 1fr}.sidebar{padding-inline:13px}.hero-art{opacity:.3}.hero-copy{max-width:650px}.benchmark-grid{grid-template-columns:1fr}.proof-panel{min-height:300px}.proof-graphic{min-height:180px}}
 @media(max-width:920px){.shell{display:block}.sidebar{height:auto;position:relative;flex-direction:row;align-items:center;gap:22px;padding:14px 20px}.brand{margin:0}.sidebar-title,.sidebar-bottom{display:none}.nav{display:flex;gap:2px;overflow-x:auto}.nav-link{font-size:11px;padding:8px}.nav-link span{display:none}.topbar{position:static;height:56px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.architecture-grid{grid-template-columns:1fr 1fr}.hero{min-height:300px}}
 @media(max-width:640px){.content{padding:17px 15px}.topbar{padding:0 15px}.top-date{display:none}.sidebar{align-items:flex-start;flex-wrap:wrap}.brand{width:100%}.nav{width:100%}.hero{padding:32px 23px}.hero-art{display:none}.hero h1{font-size:36px}.metrics{gap:9px}.metric-card{padding:15px;min-height:125px}.metric-value{font-size:29px}.metric-note{font-size:8px}.panel{padding:19px 15px}.policy-row{grid-template-columns:105px 1fr 48px;gap:8px}.policy-name{font-size:10px}.pill{font-size:8px}.explorer-meta{margin-left:0}.architecture-grid{grid-template-columns:1fr}.footer{flex-direction:column;gap:7px}.section-header h2,.panel h2{font-size:20px}}
+
+/* Recorded audit replay. Timelines are local deterministic development logs. */
+.replay-panel{margin-bottom:30px}
+.replay-heading{align-items:center}
+.replay-toolbar{display:flex;align-items:end;gap:19px;flex-wrap:wrap;margin:23px 0 17px;padding-bottom:15px;border-bottom:1px solid var(--line)}
+.replay-toolbar label{display:flex;flex-direction:column;gap:7px;color:#8199a2;font-size:10px;font-weight:800;letter-spacing:.09em}
+.replay-toolbar select{background:#1e2b35;color:#eaf1f2;border:1px solid #344651;border-radius:8px;padding:10px 14px;font-size:12px;min-width:170px}
+.replay-toolbar .metadata{margin-right:auto;text-align:left;max-width:none}
+.replay-navigation{display:flex;align-items:center;gap:10px;font-size:11px;color:#b6c7ca;white-space:nowrap}
+.replay-navigation button{padding:8px 12px;border:1px solid #405447;background:#23382e;color:#d0edd0;border-radius:7px;cursor:pointer}
+.replay-navigation button:disabled{opacity:.35;cursor:not-allowed}
+.replay-workspace{display:grid;grid-template-columns:minmax(220px,.95fr) minmax(0,1.4fr);gap:20px;min-height:315px}
+.replay-steps{display:grid;gap:6px;align-content:start;max-height:380px;overflow:auto;padding-right:6px}
+.replay-event{display:flex;align-items:center;gap:12px;background:#192832;border:1px solid #2f4248;color:#d4e6e5;border-radius:8px;text-align:left;padding:10px 12px;cursor:pointer}
+.replay-event:hover{border-color:#769e72}
+.replay-event.is-selected{border-color:#a2dc81;background:#263b32}
+.replay-event-count{color:#9dc68b;font-size:10px;font-weight:800;letter-spacing:.12em}
+.replay-event strong{font-size:11px;font-weight:700}
+.replay-event small{color:#829da2;font-size:9px;letter-spacing:.03em;text-transform:uppercase;margin-left:auto}
+.replay-inspector{background:#101d25;border:1px solid #30424c;border-radius:10px;padding:24px;display:flex;flex-direction:column}
+.replay-action{font-size:25px;line-height:1.25;color:#c2f1a3;font-weight:750;letter-spacing:-.035em;margin:14px 0 10px;overflow-wrap:anywhere}
+.replay-description{font-size:12px;color:#a1b6b7;line-height:1.7;min-height:43px}
+.replay-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}
+.replay-stats>div{background:#1a2932;border:1px solid #304148;border-radius:8px;padding:12px;display:grid;gap:4px}
+.replay-stats span{color:#89a0ab;font-size:10px}
+.replay-stats strong{color:#eef9f2;font-size:18px;font-variant-numeric:tabular-nums}
+.replay-disclaimer{font-size:10px;color:#7d949c;line-height:1.7;margin:18px 0 0}
+@media(max-width:880px){.replay-workspace{grid-template-columns:1fr}.replay-steps{max-height:230px}.replay-toolbar .metadata{width:100%;order:4}}
+@media(max-width:640px){.replay-toolbar{gap:12px}.replay-stats{gap:8px}.replay-inspector{padding:18px}.replay-event small{display:none}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}

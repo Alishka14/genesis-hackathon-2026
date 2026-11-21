@@ -1,6 +1,8 @@
 """Coherent synthetic accrual histories with explicit private interventions."""
 import copy
 from datetime import date, datetime, timedelta, timezone
+from calendar import monthrange
+import re
 from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
 import random
 from .company_checks import validate_company
@@ -19,7 +21,8 @@ def _convert(amount, rate):
 
 
 def _config(config):
-    if not isinstance(config, dict) or set(config) - {'postings', 'documents', 'faults', 'compounds'}:
+    if not isinstance(config, dict) or set(config) - {'postings', 'documents', 'faults', 'compounds',
+                                                 'foreign_currency', 'cutoff_timezone', 'period_month'}:
         raise ValueError('unknown company configuration')
     postings, documents = config.get('postings', 400), config.get('documents', 80)
     if type(postings) is not int or not 200 <= postings <= 2000 or type(documents) is not int or not 20 <= documents <= 200:
@@ -27,6 +30,20 @@ def _config(config):
     if postings < 2 * documents + 2:
         raise ValueError('not enough postings for documents and opening capital')
     result = {'postings': postings, 'documents': documents}
+    # Opt-in variants only: legacy configs preserve the exact old fixture.
+    if 'foreign_currency' in config:
+        if config['foreign_currency'] not in ('USD', 'EUR'):
+            raise ValueError('unsupported foreign currency')
+        result['foreign_currency'] = config['foreign_currency']
+    if 'cutoff_timezone' in config:
+        if config['cutoff_timezone'] not in ('+03:00', '+05:00', '+09:00'):
+            raise ValueError('unsupported cutoff timezone')
+        result['cutoff_timezone'] = config['cutoff_timezone']
+    if 'period_month' in config:
+        month = config['period_month']
+        if not isinstance(month, str) or re.fullmatch(r'20[2-3][0-9]-(?:0[1-9]|1[0-2])', month) is None:
+            raise ValueError('invalid period month')
+        result['period_month'] = month
     for key, allowed in [('faults', FAULTS), ('compounds', COMPOUNDS)]:
         counts = config.get(key, {})
         if not isinstance(counts, dict) or set(counts) - set(allowed) or any(type(v) is not int or v < 0 for v in counts.values()):
@@ -74,6 +91,9 @@ def build_company(seed, config):
     if type(seed) is not int:
         raise ValueError('seed must be an integer')
     config = _config(config)
+    foreign = config.get('foreign_currency', 'USD')
+    zone_text = config.get('cutoff_timezone', '+05:00')
+    local_zone = timezone(timedelta(hours=int(zone_text[1:3])))
     payment_count = config['documents'] // 3
     invoice_count = config['documents'] - payment_count
     plan = _plan(seed, config, payment_count)
@@ -90,13 +110,13 @@ def build_company(seed, config):
     for day in range(29):
         hundredths = initial_rate + 13 * day
         fx.append({'rate_id': new_id(), 'date': (date(2026, 1, 31) + timedelta(days=day)).isoformat(),
-                   'source_currency': 'USD', 'target_currency': 'KZT',
+                   'source_currency': foreign, 'target_currency': 'KZT',
                    'rate': f'{hundredths // 100}.{hundredths % 100:02d}'})
     by_date = {r['date']: r for r in fx}
     def quote(currency, stamp):
         if currency == 'KZT':
             return '1', None
-        rate = by_date[datetime.fromisoformat(stamp).astimezone(_ZONE).date().isoformat()]
+        rate = by_date[datetime.fromisoformat(stamp).astimezone(local_zone).date().isoformat()]
         return rate['rate'], rate['rate_id']
     invoices, payments, ledger, pairs = [], [], [], []
     credits, payment_journals = {}, {}
@@ -104,12 +124,12 @@ def build_company(seed, config):
         row = {'row_id': new_id(), 'timestamp': stamp, 'account': account, 'debit_minor': debit,
                'credit_minor': credit, 'currency': 'KZT', 'entity_id': entity, 'invoice_id': invoice,
                'payment_id': payment, 'line_id': line, 'rate_id': rate,
-               'reporting_period': datetime.fromisoformat(stamp).astimezone(_ZONE).strftime('%Y-%m')}
+               'reporting_period': datetime.fromisoformat(stamp).astimezone(local_zone).strftime('%Y-%m')}
         ledger.append(row)
         return row
     for pair_index in range((invoice_count + 1) // 2):
         entity = rng.choice(entities)
-        currency = 'USD' if pair_index % 2 else 'KZT'
+        currency = foreign if pair_index % 2 else 'KZT'
         total = rng.randint(100000, 500000)
         if pair_index == 0 or (pair_index % 2 == 1 and pair_index < 12):
             stamp = '2026-01-31T23:30:00+00:00'
@@ -126,7 +146,7 @@ def build_company(seed, config):
             lines = [{'line_id': new_id(), 'service_ref': service, 'description': f'Synthetic {category} component {i + 1}',
                       'amount_minor': amount} for i, amount in enumerate(amounts)]
             invoice = {'doc_id': doc_id, 'invoice_id': invoice_id, 'entity_id': entity, 'issued_at': stamp,
-                       'due_at': (datetime.fromisoformat(stamp).astimezone(_ZONE) + timedelta(days=14)).isoformat(),
+                       'due_at': (datetime.fromisoformat(stamp).astimezone(local_zone) + timedelta(days=14)).isoformat(),
                        'currency': currency, 'total_minor': total, 'line_items': lines}
             invoices.append(invoice)
             pair.append(invoice)
@@ -154,17 +174,17 @@ def build_company(seed, config):
         payment_journals[payment_id] = [
             posting('payable', converted, 0, target['entity_id'], payment['timestamp'], target['invoice_id'], payment_id, rate=rate_id),
             posting('bank', 0, converted, target['entity_id'], payment['timestamp'], target['invoice_id'], payment_id, rate=rate_id)]
-    start = '2026-02-01T00:00:00+05:00'
+    start = f'2026-02-01T00:00:00{zone_text}'
     funding = outflow * 2 + 100000
     posting('bank', funding, 0, company_id, start)
     posting('equity', 0, funding, company_id, start)
     tables = {'invoices': invoices, 'payments': payments, 'ledger': ledger, 'fx': fx}
     public = {'manifest': {'schema_version': '0.3-company', 'episode_id': episode_id, 'company_id': company_id,
-                           'base_currency': 'KZT', 'period_start': start, 'period_end': '2026-02-28T23:59:59+05:00',
-                           'timezone': '+05:00', 'rounding': 'ROUND_HALF_EVEN', 'counts': {k: len(v) for k, v in tables.items()}},
+                           'base_currency': 'KZT', 'period_start': start, 'period_end': f'2026-02-28T23:59:59{zone_text}',
+                           'timezone': zone_text, 'rounding': 'ROUND_HALF_EVEN', 'counts': {k: len(v) for k, v in tables.items()}},
               'policy': {'accounting_model': 'accrual_company_v1', 'rounding': 'ROUND_HALF_EVEN',
-                         'currency_exponents': {'KZT': 2, 'USD': 2}, 'fx_date': 'local_transaction_date',
-                         'cutoff_timezone': '+05:00', 'period_rule': 'calendar_month_of_transaction',
+                         'currency_exponents': {'KZT': 2, foreign: 2}, 'fx_date': 'local_transaction_date',
+                         'cutoff_timezone': zone_text, 'period_rule': 'calendar_month_of_transaction',
                          'invoice_rounding': 'round_total_residual_to_last_line',
                          'duplicate_rule': 'one_invoice_per_service_ref',
                          'allocation_rule': 'allocate_full_payment_to_remittance_invoice', 'allocation_claim_currency': 'KZT'},
@@ -198,7 +218,7 @@ def build_company(seed, config):
             group.append(issue('duplicate_invoice', [first['invoice_id'], second['invoice_id']], second['total_minor'], second['currency'],
                                [first['doc_id'], second['doc_id'], credits[first['invoice_id']]['row_id'], credits[second['invoice_id']]['row_id']]))
         if kind in ('fx_rate_or_date', 'fx_allocation'):
-            previous = (datetime.fromisoformat(payment['timestamp']).astimezone(_ZONE).date() - timedelta(days=1)).isoformat()
+            previous = (datetime.fromisoformat(payment['timestamp']).astimezone(local_zone).date() - timedelta(days=1)).isoformat()
             wrong_rate = by_date[previous]
             wrong = _convert(payment['amount_minor'], wrong_rate['rate'])
             for row in rows:
@@ -231,5 +251,42 @@ def build_company(seed, config):
     order_rng = random.Random(f'{VERSION}:order:{seed}')
     for table in tables.values():
         order_rng.shuffle(table)
+    # A month-shift is applied after the original clean/fault checks so the
+    # intervention program and random draws stay byte-for-byte identical for
+    # default configurations. Every public time, dated FX quote and declared
+    # reporting month moves as a unit; private before/after period records do
+    # too. Only named fields are transformed, never arbitrary user strings.
+    if config.get('period_month', '2026-02') != '2026-02':
+        year, month = map(int, config['period_month'].split('-'))
+        delta = date(year, month, 1) - date(2026, 2, 1)
+        months = (year - 2026) * 12 + month - 2
+        def shift_period(value):
+            d = date.fromisoformat(value + '-01')
+            count = d.year * 12 + d.month - 1 + months
+            return f'{count // 12:04d}-{count % 12 + 1:02d}'
+        def shift_fields(value):
+            if isinstance(value, list):
+                return [shift_fields(item) for item in value]
+            if not isinstance(value, dict):
+                return value
+            new = {}
+            for key, item in value.items():
+                if key in ('timestamp', 'issued_at', 'due_at', 'period_start', 'period_end') and isinstance(item, str):
+                    new[key] = (datetime.fromisoformat(item) + delta).isoformat()
+                elif key == 'date' and isinstance(item, str):
+                    new[key] = (date.fromisoformat(item) + delta).isoformat()
+                elif key == 'reporting_period' and isinstance(item, str):
+                    new[key] = shift_period(item)
+                else:
+                    new[key] = shift_fields(item)
+            return new
+        public = shift_fields(public)
+        public['manifest']['period_end'] = (
+            f'{year:04d}-{month:02d}-{monthrange(year, month)[1]:02d}'
+            f'T23:59:59{zone_text}')
+        for item in provenance['interventions']:
+            if item['field'] == 'reporting_period':
+                item['before'] = shift_period(item['before'])
+                item['after'] = shift_period(item['after'])
     validate_company(public, truth)
     return public, truth, provenance

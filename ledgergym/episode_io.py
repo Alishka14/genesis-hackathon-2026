@@ -14,6 +14,12 @@ def _json_text(value):
 
 
 def _validator(public):
+    if public['policy'].get('accounting_model') == 'accrual_company_v2':
+        from .settlement_faults_v2 import validate_settlement_episode
+        return validate_settlement_episode
+    if public['policy'].get('accounting_model') == 'accrual_company_v1':
+        from .company_checks import validate_company
+        return validate_company
     tables = public['tables']
     if 'allocation_rule' in public['policy'] and (tables['fx'] or len(tables['invoices']) == 2):
         return validate_compound
@@ -26,13 +32,27 @@ def _validator(public):
     return validate_episode
 
 
-def export_episode(root, public, truth, *, seed):
+def export_episode(root, public, truth, *, seed, provenance=None):
     """Create a new folder with public/ and private/; never overwrite an episode.
 
     Both folders are readable to a process with access to their parent. Do not
     expose the parent to an untrusted agent. Real isolation remains unimplemented.
     """
     _validator(public)(public, truth)
+    model = public['policy'].get('accounting_model')
+    if model in ('accrual_company_v1', 'accrual_company_v2'):
+        expected_version = {
+            'accrual_company_v1': 'company-0.1',
+            'accrual_company_v2': 'company-settlements-0.1',
+        }[model]
+        if (not isinstance(provenance, dict) or type(seed) is not int
+                or type(provenance.get('seed')) is not int or provenance['seed'] != seed
+                or provenance.get('generator_version') != expected_version
+                or not isinstance(provenance.get('config'), dict)
+                or not isinstance(provenance.get('interventions'), list)):
+            raise ValueError('matching private company provenance is required')
+    if provenance is None:
+        provenance = {'seed': seed, 'generator_version': '0.2-fixture'}
     root = Path(root)
     root.mkdir(mode=0o700, parents=False, exist_ok=False)
     pub, private = root / 'public', root / 'private'
@@ -51,7 +71,7 @@ def export_episode(root, public, truth, *, seed):
             writer.writeheader()
             writer.writerows(records)
     (private / 'truth.json').write_text(_json_text(truth) + '\n', encoding='utf-8')
-    (private / 'provenance.json').write_text(_json_text({'seed': seed, 'generator_version': '0.2-fixture'}) + '\n', encoding='utf-8')
+    (private / 'provenance.json').write_text(_json_text(provenance) + '\n', encoding='utf-8')
 
 
 def load_public_episode(public_dir):
@@ -60,8 +80,8 @@ def load_public_episode(public_dir):
     public = {key: json.loads((folder / f'{key}.json').read_text(encoding='utf-8')) for key in ('manifest', 'policy')}
     tables = {}
     for table in ('invoices', 'payments'):
-        text = (folder / f'{table}.jsonl').read_text(encoding='utf-8')
-        tables[table] = [json.loads(line) for line in text.splitlines() if line]
+        with (folder / f'{table}.jsonl').open(encoding='utf-8') as stream:
+            tables[table] = [json.loads(line) for line in stream if line.strip()]
     for table in ('ledger', 'fx'):
         with (folder / f'{table}.csv').open(encoding='utf-8', newline='') as stream:
             rows = list(csv.DictReader(stream))
@@ -69,8 +89,8 @@ def load_public_episode(public_dir):
             for row in rows:
                 for key in ('debit_minor', 'credit_minor'):
                     row[key] = int(row[key])
-                for key in ('invoice_id', 'payment_id'):
-                    if row[key] == '':
+                for key in ('invoice_id', 'payment_id', 'line_id', 'rate_id'):
+                    if row.get(key) == '':
                         row[key] = None
         tables[table] = rows
     public['tables'] = tables

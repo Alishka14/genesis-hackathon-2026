@@ -7,7 +7,12 @@ from ledgergym.world import make_episode
 
 
 def _image_available():
-    return bool(shutil.which('docker')) and subprocess.run(['docker', 'image', 'inspect', IMAGE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    if not shutil.which('docker'):
+        return False
+    try:
+        return subprocess.run(['docker', 'image', 'inspect', IMAGE], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 pytestmark = pytest.mark.skipif(not _image_available(), reason='pinned Docker image not locally available')
@@ -69,3 +74,43 @@ def test_isolated_agent_investigates_and_submits_without_hidden_reward(tmp_path)
     assert result['outcome'] == 'terminated'
     assert result['score']['tp'] == 1 and result['score']['reward'] == .996
     assert 'private-' not in repr(result['actions'])
+
+
+def test_isolated_agent_reads_maximum_company_through_paginated_tools(tmp_path):
+    from ledgergym.company_world import build_company
+    public, truth, _ = build_company(42, {'postings': 2000, 'documents': 200})
+    script = tmp_path / 'agent.py'
+    script.write_text('''import json, sys
+def receive():
+    message = json.loads(sys.stdin.readline())
+    assert message['reward'] == 0 and message['info'] == {}
+    assert not message['terminated'] and not message['truncated']
+    return message['observation']
+def send(action):
+    print(json.dumps(action), flush=True)
+initial = receive()
+totals = {}
+for table in ('ledger', 'invoices', 'payments', 'fx'):
+    total = 0
+    cursor = None
+    while True:
+        action = {'action': 'list_records', 'table': table, 'limit': 50}
+        if cursor is not None:
+            action['cursor'] = cursor
+        send(action)
+        page = receive()
+        total += len(page['records'])
+        cursor = page['next_cursor']
+        if cursor is None:
+            break
+    totals[table] = total
+assert totals['ledger'] == 2000
+assert totals['invoices'] + totals['payments'] == 200
+assert totals['fx'] == 29
+send({'action': 'submit', 'episode_id': initial['manifest']['episode_id'], 'findings': []})
+''')
+    result = run_isolated_agent(public, truth, script, timeout=30)
+    assert result['outcome'] == 'terminated'
+    assert result['score']['f1'] == 1
+    assert len(result['actions']) == 47
+    assert result['score']['reward'] == pytest.approx(1 - .002 * 46)

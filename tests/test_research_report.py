@@ -17,12 +17,17 @@ def test_research_report_stays_aggregate_and_consistent_with_baselines(tmp_path)
     assert report["clean_case_counts"] == {
         "standard": 2, "hard_negative": 2, "faulty": 16,
     }
+    assert report["faa_opportunity_unit"] == "validated_unimplicated_payment_operation"
     rec = report["policies"]["reconciliation"]
     assert rec["tp"] == 42
     assert rec["fp"] == 0
     assert rec["fn"] == 0
     assert rec["score_matches"] == 20
     assert rec["invariance_trials_passed"] == 40
+    # Operation-level denominators include validated payments in faulty episodes,
+    # not just one opportunity per fully clean company.
+    assert rec["standard_opportunities"] > report["clean_case_counts"]["standard"]
+    assert rec["hard_negative_opportunities"] >= report["clean_case_counts"]["hard_negative"]
     assert rec["standard_valid_case_fpr"] == 0
     assert rec["hard_negative_case_fpr"] == 0
     rnd = report["policies"]["seeded_random"]

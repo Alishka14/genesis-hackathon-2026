@@ -44,6 +44,38 @@ def _public_folder(root: Path, split: str, episode: str) -> Path:
     return folder
 
 
+def _public_reconciliation(public: dict) -> dict:
+    """Find deterministic public-rule inconsistencies; no private truth used.
+
+    This is the reference reconciliation baseline, not an autonomous AI policy
+    or an independent financial validation benchmark.
+    """
+    model = public["policy"].get("accounting_model")
+    if model == "accrual_company_v1":
+        from .company_checks import inspect_company
+        raw = inspect_company(public)
+    elif model == "accrual_company_v2":
+        from .settlement_faults_v2 import inspect_settlement_faults
+        raw = inspect_settlement_faults(public)
+    else:
+        raise ValueError("unsupported public accounting model")
+    if not isinstance(raw, list) or len(raw) > 30:
+        raise ValueError("invalid reconciliation output")
+    fields = ("type", "affected_ids", "claimed_amount_minor",
+              "currency", "evidence_ids", "explanation")
+    return {
+        "engine": "deterministic_public_reconciliation",
+        "accounting_model": model,
+        "count": len(raw),
+        "findings": [
+            {key: item[key] for key in fields if key in item}
+            for item in raw
+        ],
+        "independent_validation": False,
+        "private_truth_used": False,
+    }
+
+
 def _replay_snapshot(root: Path, episode_id: str, split: str, policy: str) -> dict:
     """Extract *display-only* non-oracle steps without sending raw observations.
 
@@ -240,6 +272,21 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                         },
                         "accounting_model": public["policy"].get("accounting_model"),
                     })
+                elif path == "/api/findings":
+                    query = parse_qs(url.query, keep_blank_values=True)
+                    if set(query) != {"split", "episode"}:
+                        raise ValueError("expected split and episode")
+                    if any(len(values) != 1 for values in query.values()):
+                        raise ValueError("duplicate findings parameters")
+                    split, episode = (query[key][0]
+                                      for key in ("split", "episode"))
+                    if split not in SPLITS or episode not in episodes[split]:
+                        raise ValueError("unsupported findings selection")
+                    folder = _public_folder(root, split, episode)
+                    public = load_public_episode(folder)
+                    if public["manifest"].get("episode_id") != episodes[split][episode]["episode_id"]:
+                        raise ValueError("episode manifest mismatch")
+                    self._json(200, _public_reconciliation(public))
                 elif path == "/api/replay":
                     query = parse_qs(url.query, keep_blank_values=True)
                     if set(query) != {"split", "episode", "policy"}:

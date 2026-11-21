@@ -336,6 +336,15 @@ def audit_v2(public, truth):
     payments = {x["payment_id"]: x for x in t["payments"]}
     _need(len(invoices) == len(t["invoices"])
           and len(payments) == len(t["payments"]), "duplicate business source IDs")
+    public_ids = []
+    for table, key in (("invoices", "invoice_id"), ("payments", "payment_id"),
+                       ("ledger", "row_id"), ("fx", "rate_id")):
+        for record in t[table]:
+            public_ids.append(record[key])
+            if table in ("invoices", "payments"):
+                public_ids.append(record["doc_id"])
+    _need(all(isinstance(item, str) and item for item in public_ids)
+          and len(public_ids) == len(set(public_ids)), "duplicate v2 public ID")
     journal_invoice, journal_payment, capital = defaultdict(list), defaultdict(list), []
     net = 0
     for row in t["ledger"]:
@@ -462,8 +471,13 @@ def audit_v2(public, truth):
               and payable[0]["debit_minor"] == bank[0]["credit_minor"] == converted
               and payable[0]["credit_minor"] == bank[0]["debit_minor"] == 0,
               "v2 payment journal not accounted")
-        _need(all(x["entity_id"] == p["entity_id"] and
-                  x["rate_id"] == fxid and moment(x["timestamp"]) == stamp
+        expected_anchor = actual[0]["invoice_id"] if len(actual) == 1 else None
+        _need(p.get("remittance_invoice_id") == expected_anchor,
+              "v2 transfer remittance anchor invalid")
+        _need(all(x["entity_id"] == p["entity_id"]
+                  and x["invoice_id"] == expected_anchor
+                  and x["line_id"] is None and x["rate_id"] == fxid
+                  and moment(x["timestamp"]) == stamp
                   for x in rows), "v2 transfer posting source wrong")
         transfer_times.append(stamp)
         outflow += converted
@@ -492,6 +506,11 @@ def audit_v2(public, truth):
               and payable[0]["credit_minor"] == bank[0]["debit_minor"] == p["amount_minor"]
               and payable[0]["debit_minor"] == bank[0]["credit_minor"] == 0,
               "v2 refund accounting mismatch")
+        _need(p.get("remittance_invoice_id") is None and
+              all(x["invoice_id"] is None and x["entity_id"] == p["entity_id"]
+                  and x["line_id"] is None and x["rate_id"] is None
+                  and moment(x["timestamp"]) == moment(p["timestamp"])
+                  for x in rows), "v2 refund journal source/date invalid")
         outflow -= p["amount_minor"]
     _need(all(0 <= applied[iid] <= inv["total_minor"] for iid, inv in invoices.items()),
           "v2 applied invoice balance impossible")
@@ -499,7 +518,12 @@ def audit_v2(public, truth):
     equity = [r for r in capital if r["account"] == "equity"]
     _need(len(capital) == 2 and len(bank) == len(equity) == 1
           and bank[0]["debit_minor"] == equity[0]["credit_minor"]
-          and bank[0]["debit_minor"] >= outflow,
+          and bank[0]["credit_minor"] == equity[0]["debit_minor"] == 0
+          and bank[0]["debit_minor"] >= outflow
+          and all(x["entity_id"] == manifest["company_id"]
+                  and x["invoice_id"] is None and x["payment_id"] is None
+                  and x["line_id"] is None and x["rate_id"] is None
+                  and moment(x["timestamp"]) == start for x in capital),
           "v2 capital inadequate")
     count = verify_truth_evidence(derived, truth, public)
     return {"status": "PASS", "model": "accrual_company_v2",

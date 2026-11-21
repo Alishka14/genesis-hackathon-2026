@@ -15,8 +15,8 @@ def _json_text(value):
 
 def _validator(public):
     if public['policy'].get('accounting_model') == 'accrual_company_v2':
-        from .company_checks_v2 import validate_settlement_company
-        return validate_settlement_company
+        from .settlement_faults_v2 import validate_settlement_episode
+        return validate_settlement_episode
     if public['policy'].get('accounting_model') == 'accrual_company_v1':
         from .company_checks import validate_company
         return validate_company

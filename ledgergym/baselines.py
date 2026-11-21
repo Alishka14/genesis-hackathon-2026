@@ -116,13 +116,10 @@ def run_baseline(public, truth, policy, seed=0):
             from .company_checks import inspect_company
             findings = inspect_company({'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables})
         elif model == 'accrual_company_v2':
-            from .company_checks_v2 import validate_settlement_company
-            # Validate each public documentary and journal fact independently.
-            # This is a clean-only model: no private truth is consulted here.
-            validate_settlement_company(
-                {'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables},
-                {'issues': []})
-            findings = []
+            from .settlement_faults_v2 import inspect_settlement_faults
+            # Both clean and faulty v2 share policy/schema. Use public evidence.
+            findings = inspect_settlement_faults(
+                {'manifest': initial['manifest'], 'policy': initial['policy'], 'tables': tables})
         else:
             findings = _reconcile(tables, initial['policy'])
     elif policy == 'mark_all':

@@ -33,7 +33,12 @@ def evaluate_fixture_dataset(dataset, output):
                        'f1_sum': 0.0, 'reward_sum': 0.0} for name in policies}
     clean_slices = {'overall': {}, 'train': {}, 'dev': {}}
     model_counts = {'train': {}, 'dev': {}}
+    v2_labels = {'train': {'clean': 0, 'faulty': 0},
+                 'dev': {'clean': 0, 'faulty': 0}}
     trajectories = []
+    # Full, *trusted development-only* transition log. The canonical closed
+    # agent protocol never exposes final reward or evaluator feedback.
+    full_events = []
     seen_ids = set()
     for split in ('train', 'dev'):
         entries = index[split]
@@ -59,13 +64,15 @@ def evaluate_fixture_dataset(dataset, output):
                     from .company_checks import validate_company
                     validate_company(public, truth)
                 elif extended and model == 'accrual_company_v2':
-                    from .company_checks_v2 import validate_settlement_company
-                    validate_settlement_company(public, truth)
+                    from .settlement_faults_v2 import validate_settlement_episode
+                    validate_settlement_episode(public, truth)
                 else:
                     raise ValueError('unsupported accounting model in development set')
             if extended:
                 counts = model_counts[split]
                 counts[model] = counts.get(model, 0) + 1
+                if model == 'accrual_company_v2':
+                    v2_labels[split]['faulty' if truth['issues'] else 'clean'] += 1
             public_ids = accessible_evidence_ids(public)
             for name in policies:
                 result = run_baseline(public, truth, name, seed=0)
@@ -87,10 +94,30 @@ def evaluate_fixture_dataset(dataset, output):
                         measures['f1_sum'] += score['f1']
                         measures['reward_sum'] += score['reward']
                 if result['trajectory'] is not None:
-                    env = LedgerSandbox(public, lambda answers, steps: evaluate(truth['issues'], answers, public_ids, steps))
-                    replayed = replay_actions(env, result['trajectory'])['steps'][-1]
+                    env = LedgerSandbox(
+                        public, lambda answers, steps: evaluate(
+                            truth['issues'], answers, public_ids, steps),
+                        # Reproducible development cursor tokens only. The
+                        # production judge retains its opaque cursor policy.
+                        cursor_factory=lambda table, offset: f'dev-cursor:{table}:{offset}',
+                    )
+                    replay = replay_actions(env, result['trajectory'])
+                    replayed = replay['steps'][-1]
                     if not replayed[2] or replayed[3] or replayed[4].get('score') != score:
                         raise ValueError('trajectory replay did not reproduce the score')
+                    if len(replay['steps']) != len(result['trajectory']):
+                        raise ValueError('missing replay transition')
+                    if len(replay['executed_actions']) != len(replay['steps']):
+                        raise ValueError('missing resolved replay action')
+                    for step_no, (action, transition) in enumerate(
+                            zip(replay['executed_actions'], replay['steps']), start=1):
+                        observation, reward, terminated, truncated, _ = transition
+                        full_events.append({
+                            'episode_id': entry['episode_id'], 'split': split,
+                            'policy': name, 'step': step_no, 'action': action,
+                            'observation': observation, 'reward': reward,
+                            'terminated': terminated, 'truncated': truncated,
+                        })
                     trajectories.append({'episode_id': entry['episode_id'], 'split': split, 'policy': name,
                                          'trajectory_format': 'ledgergym-actions-v1', 'actions': result['trajectory']})
     for group in (totals, *splits.values()):
@@ -104,7 +131,9 @@ def evaluate_fixture_dataset(dataset, output):
     if extended:
         for split in ('train', 'dev'):
             if model_counts[split].get('accrual_company_v2') != 2:
-                raise ValueError('expected two clean settlement companies per split')
+                raise ValueError('expected two settlement companies per split')
+            if v2_labels[split] != {'clean': 1, 'faulty': 1}:
+                raise ValueError('expected one clean and one faulted v2 episode')
             if 'accrual_company_v1' not in clean_slices[split]:
                 raise ValueError('expected at least one legacy clean control per split')
         for scope in clean_slices.values():
@@ -115,13 +144,52 @@ def evaluate_fixture_dataset(dataset, output):
                     metrics['mean_f1'] = metrics.pop('f1_sum') / n
                     metrics['mean_reward'] = metrics.pop('reward_sum') / n
         summary['model_counts'] = model_counts
+        summary['v2_label_counts'] = v2_labels
         summary['clean_false_accusations'] = clean_slices
         summary['shortcut_warning'] = (
-            'The public accrual_company_v2 model is clean-only in this open dataset; '
-            'model identity predicts empty truth. False-accusation diagnostics only; '
-            'not a balanced hidden evaluation or proof of generalization.')
+            'The public accrual_company_v2 model has both clean and faulted episodes, '
+            'so model identity alone no longer predicts empty truth. Only two v2 '
+            'cases per split: results are internal diagnostics, not statistical '
+            'generalization or hidden evaluation.')
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
+    # A separate, never-agent-mounted artifact: public observations with the
+    # development reward, but no truth/provenance/evaluator-only info fields.
+    (output / 'trajectories_full.jsonl').write_text(
+        ''.join(json.dumps(event, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
+    # Contest-facing OPEN-development trace schema, stored in its own folder
+    # to avoid silently breaking consumers of the legacy action-only
+    # output/trajectories.jsonl. Reward is observable only in the trusted
+    # open-development evaluator, never supplied as a closed-mode tool result.
+    submission = output / 'submission'
+    submission.mkdir(mode=0o700)
+    public_fields = ('episode_id', 'step', 'action', 'observation',
+                     'reward', 'terminated', 'truncated')
+    (submission / 'trajectories.jsonl').write_text(
+        ''.join(json.dumps({key: event[key] for key in public_fields},
+                           sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
+    first_line = 1
+    trace_index = []
+    for record in trajectories:
+        count = len(record['actions'])
+        trace_index.append({
+            'episode_id': record['episode_id'],
+            'split': record['split'], 'policy': record['policy'],
+            'first_line': first_line, 'steps': count,
+        })
+        first_line += count
+    if first_line != len(full_events) + 1:
+        raise ValueError('submission trace index incomplete')
+    (submission / 'trace_index.json').write_text(
+        json.dumps({
+            'format': 'ledgergym-public-development-transitions-v1',
+            'private_truth_exported': False,
+            'closed_mode': False,
+            'trajectories': trace_index,
+        }, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n',
+        encoding='utf-8')
     return summary
 
 

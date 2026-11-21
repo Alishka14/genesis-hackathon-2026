@@ -105,9 +105,20 @@ def test_unsupported_policy_never_guesses_tags():
     assert flags["supported_policy"] is False
     assert flags["verified_comparisons"] == 0
     assert flags["contradictory_ids"] == flags["temporally_invalid_ids"] == set()
-    result = evidence_taxonomy_from_public([], [_finding()], set(_finding()["evidence_ids"]), public)
+    finding = _finding()
+    # EQT checks affected IDs and cited evidence independently from whether
+    # the v1-only financial policy is supported. Both must be public here.
+    public_ids = set(finding["evidence_ids"] + finding["affected_ids"])
+    result = evidence_taxonomy_from_public([], [finding], public_ids, public)
     assert result["public_policy_supported"] is False
     assert result["items"] == [["UNDETERMINED"]]
+    # An unsupported financial model must not suppress a genuinely
+    # fabricated evidence/affected ID.
+    fabricated = copy.deepcopy(finding)
+    fabricated["evidence_ids"].append("nonpublic-doc")
+    report = evidence_taxonomy_from_public([], [fabricated], public_ids, public)
+    assert report["public_policy_supported"] is False
+    assert report["items"] == [["FABRICATED_ID"]]
 
 
 def test_wrong_time_or_timezone_fails_closed():

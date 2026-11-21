@@ -52,6 +52,12 @@ An independently executed verifier checks exact 10+10 public episode inventory, 
 4. **Resource limits.** The 2 CPU / 4 GiB / 60-sec per episode / 1 GiB package line is *proposed* in the case. A single local RSS observation is not a hard-enforced limit.
 5. **CI after merge.** GitHub-hosted jobs may fail to be scheduled. Capture explicit results from actual Mac Docker + Python 3.11 verification, not a green PR or an unassigned workflow.
 
+## LG-039 isolated verifier evidence (21 November)
+
+A local Python 3.13 test harness checked **byte-identical** GitHub blobs `scripts/export_submission.py` (Git blob `d6138999a9cb3664c32d8b546f67b6b814f6ba39`) and `scripts/verify_submission_package.py` (Git blob `d274d8bc33715d97bbcfa4401b948d671b6373ea`). The original isolated export fixtures also passed **5/5**. An additional five direct checks passed: a valid synthetic 10 train + 10 dev export with 60 traces and 125 files; altered payments file SHA failure; extra private truth file rejection; private `seed` injection with recomputed checksum rejection; symlink rejection. These checks do **not** run the actual 10+10 LedgerGym company generator, new 50+ parameter adversarial matrix, the full P0 gate or the installed wheel.
+
+GitHub Actions for this PR returned **failure without any execution steps** in all jobs (Python 3.11, 3.12, alternate Ubuntu 22.04). This is a runner/scheduling blocker, not evidence of a failing pytest assertion. The Mac release owner must run the tests and full P0; status remains **NOT_VERIFIED** for final integrated code.
+
 ## Human-owned submission items — not completed by code merge
 
 - [ ] Confirm 2–4 official team members, captain and human author/contribution mapping.

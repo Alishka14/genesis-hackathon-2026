@@ -21,13 +21,23 @@ def run_test_policy(script, config, timeout=4):
     # A trusted test child exercises real pipe I/O only. This is not a sandbox test.
     env = FlightRecorder(JudgeEnv(timeout=timeout))
     initial, info = env.reset(72, config)
-    with subprocess.Popen([sys.executable, "-u", "-c", script], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
-        try:
-            result = _drive(child, env, initial, info)
-        finally:
+    # A policy may terminate while the parent has buffered stdin data.
+    # Popen's context-manager exit implicitly flushes stdin and can raise
+    # BrokenPipeError even when _drive correctly classified a protocol fault.
+    child = subprocess.Popen([sys.executable, "-u", "-c", script], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+    try:
+        result = _drive(child, env, initial, info)
+    finally:
+        if child.poll() is None:
             child.kill()
-            child.wait(timeout=5)
+        child.wait(timeout=5)
+        for pipe in (child.stdin, child.stdout):
+            if pipe is not None:
+                try:
+                    pipe.close()
+                except (BrokenPipeError, OSError):
+                    pass
     return result, env
 
 

@@ -116,6 +116,10 @@ def evaluate_fixture_dataset(dataset, output):
                     metrics['mean_reward'] = metrics.pop('reward_sum') / n
         summary['model_counts'] = model_counts
         summary['clean_false_accusations'] = clean_slices
+        summary['shortcut_warning'] = (
+            'The public accrual_company_v2 model is clean-only in this open dataset; '
+            'model identity predicts empty truth. False-accusation diagnostics only; '
+            'not a balanced hidden evaluation or proof of generalization.')
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
     return summary

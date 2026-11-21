@@ -113,7 +113,9 @@ def verify(*, mode: str, report_path: Path, timeout: int) -> int:
         "stages": {},
         "success": False,
         "contest_certified": False,
-        "docker_isolation_covered": mode == "full",
+        # A full pytest run does not prove Docker tests ran rather than
+        # being skipped. The separate role3 workflow must enforce that gate.
+        "docker_isolation_covered": False,
         "offline_bundle_covered": False,
     }
     stages = report["stages"]

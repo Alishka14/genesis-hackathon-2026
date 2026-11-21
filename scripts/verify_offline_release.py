@@ -35,6 +35,10 @@ INSTALLED_TESTS = (
     "tests/test_policy_evidence.py",
     "tests/test_faa_operation_cases.py",
     "tests/test_jury_style_adversarial.py",
+    "tests/test_independent_finance_audit.py",
+    "tests/test_finance_manual_reference.py",
+    "tests/test_independent_dataset_cli.py",
+    "tests/test_financial_env_metamorphic.py",
     "tests/test_cab_invariance.py",
     "tests/test_cab_company_pairs.py",
 )

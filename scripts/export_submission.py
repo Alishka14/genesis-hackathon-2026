@@ -210,6 +210,15 @@ def export_submission(dataset, destination):
             json.dumps({'schema': 'ledgergym-public-submission-v1',
                         'files': manifest}, sort_keys=True, indent=2) + '\n',
             encoding='utf-8')
+        # Audit the staged, allowlisted artifact before publishing it.
+        # Support both `python scripts/export_submission.py` and package imports.
+        if __package__:
+            from .verify_submission_package import verify_public_package
+        else:
+            from verify_submission_package import verify_public_package
+        verification = verify_public_package(stage)
+        if verification['trajectories'] != 60:
+            raise ValueError('incomplete public package verification')
         if destination.exists():
             raise FileExistsError('destination exists: choose a new path')
         os.rename(stage, destination)

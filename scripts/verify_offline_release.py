@@ -30,6 +30,11 @@ INSTALLED_TESTS = (
     "tests/test_research_diagnostics.py",
     "tests/test_research_robustness.py",
     "tests/test_research_report.py",
+    # These P1 modules were merged after the last recorded full P0.
+    # Include them in the installed-wheel suite, not only source pytest.
+    "tests/test_policy_evidence.py",
+    "tests/test_faa_operation_cases.py",
+    "tests/test_jury_style_adversarial.py",
     "tests/test_cab_invariance.py",
     "tests/test_cab_company_pairs.py",
 )

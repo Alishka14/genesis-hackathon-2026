@@ -5,6 +5,7 @@ import json
 import pytest
 
 from scripts.export_submission import export_submission
+from scripts.verify_submission_package import verify_public_package
 
 
 def _write_json(path, value):
@@ -62,8 +63,10 @@ def test_public_export_no_secret_and_hashes(tmp_path):
     assert result['trajectories'] == 60
     assert result['contest_certified'] is False
     assert len(list(output.rglob('public'))) == 20
+    # macOS temporary paths often start with /private/var; inspect only
+    # paths relative to the exported artifact, not the host filesystem.
     for rel in output.rglob('*'):
-        assert 'private' not in rel.parts
+        assert 'private' not in rel.relative_to(output).parts
     assert not list(output.rglob('truth.json'))
     assert not list(output.rglob('provenance.json'))
     assert len(list(output.rglob('manifest.json'))) == 20
@@ -72,6 +75,11 @@ def test_public_export_no_secret_and_hashes(tmp_path):
     for rel, digest in sums.items():
         assert hashlib.sha256((output / rel).read_bytes()).hexdigest() == digest
     assert result['exported_files'] == len(sums) + 1
+    verified = verify_public_package(output)
+    assert verified['status'] == 'PASS'
+    assert verified['verified_files'] == 125
+    assert verified['trajectories'] == 60
+    assert verified['private_truth_exported'] is False
     with pytest.raises(FileExistsError):
         export_submission(source, output)
 
@@ -144,3 +152,59 @@ def test_real_company_dataset_export(tmp_path):
     assert len(list(output.rglob('manifest.json'))) == 20
     assert not list(output.rglob('truth.json'))
     assert not list(output.rglob('provenance.json'))
+
+
+def test_jury_verifier_rejects_modified_financial_document(tmp_path):
+    source = tmp_path / 'source'
+    _fixture(source)
+    output = tmp_path / 'public'
+    export_submission(source, output)
+    payment = output / 'train' / 'episode-00' / 'public' / 'payments.jsonl'
+    payment.write_text('{"amount_minor":999}\n')
+    with pytest.raises(ValueError, match='SHA256'):
+        verify_public_package(output)
+
+
+def test_jury_verifier_rejects_extra_private_file(tmp_path):
+    source = tmp_path / 'source'
+    _fixture(source)
+    output = tmp_path / 'public'
+    export_submission(source, output)
+    priv = output / 'dev' / 'episode-00' / 'private'
+    priv.mkdir()
+    (priv / 'truth.json').write_text('{}\n')
+    with pytest.raises(ValueError, match='inventory'):
+        verify_public_package(output)
+
+
+def test_jury_verifier_rejects_rehashed_invalid_trace(tmp_path):
+    source = tmp_path / 'source'
+    _fixture(source)
+    output = tmp_path / 'public'
+    export_submission(source, output)
+    trace = output / 'trajectories.jsonl'
+    lines = trace.read_text().splitlines()
+    row = json.loads(lines[0])
+    row['observation']['seed'] = 2026
+    lines[0] = json.dumps(row)
+    trace.write_text('\n'.join(lines) + '\n')
+    hashes = json.loads((output / 'SHA256SUMS.json').read_text())
+    hashes['files']['trajectories.jsonl'] = hashlib.sha256(trace.read_bytes()).hexdigest()
+    _write_json(output / 'SHA256SUMS.json', hashes)
+    with pytest.raises(ValueError, match='private evaluator'):
+        verify_public_package(output)
+
+
+def test_jury_verifier_rejects_linked_file(tmp_path):
+    source = tmp_path / 'source'
+    _fixture(source)
+    output = tmp_path / 'public'
+    export_submission(source, output)
+    payment = output / 'train' / 'episode-00' / 'public' / 'payments.jsonl'
+    contents = payment.read_bytes()
+    duplicate = tmp_path / 'outside-payments.jsonl'
+    duplicate.write_bytes(contents)
+    payment.unlink()
+    payment.symlink_to(duplicate)
+    with pytest.raises(ValueError, match='linked'):
+        verify_public_package(output)

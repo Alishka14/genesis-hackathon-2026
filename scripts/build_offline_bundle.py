@@ -59,7 +59,7 @@ def main():
         # Build in a fresh tree so old build/ or egg-info files cannot enter it.
         for name in ('ledgergym', 'tests', 'examples', 'docs', 'scripts', 'third_party_licenses'):
             shutil.copytree(root / name, build_root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        for name in ('pyproject.toml', 'MANIFEST.in', '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md', 'requirements-build.lock', 'requirements-dev.lock'):
+        for name in ('judge_adapter.py', 'pyproject.toml', 'MANIFEST.in', '.python-version', 'README.md', 'THIRD_PARTY_NOTICES.md', 'requirements-build.lock', 'requirements-dev.lock'):
             shutil.copy2(root / name, build_root / name)
         wheels, sources = stage / 'wheels', stage / 'source'
         wheels.mkdir(parents=True)

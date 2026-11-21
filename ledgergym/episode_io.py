@@ -72,8 +72,8 @@ def load_public_episode(public_dir):
     public = {key: json.loads((folder / f'{key}.json').read_text(encoding='utf-8')) for key in ('manifest', 'policy')}
     tables = {}
     for table in ('invoices', 'payments'):
-        text = (folder / f'{table}.jsonl').read_text(encoding='utf-8')
-        tables[table] = [json.loads(line) for line in text.splitlines() if line]
+        with (folder / f'{table}.jsonl').open(encoding='utf-8') as stream:
+            tables[table] = [json.loads(line) for line in stream if line.strip()]
     for table in ('ledger', 'fx'):
         with (folder / f'{table}.csv').open(encoding='utf-8', newline='') as stream:
             rows = list(csv.DictReader(stream))

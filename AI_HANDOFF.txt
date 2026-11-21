@@ -1,0 +1,24 @@
+LedgerGym final P0 integration candidate | 21 November 2026
+
+Review branch agent/integration/final-p0 against agent/matching/plan2-payments (#16).
+Financial input 82719e8fd1731a86fbbd6467db383027d2dd2d0f includes #14 and #15.
+Environment input origin/agent/environment/lg-013 includes merged #18,
+c8dc0a5fee160edd963ed00e2bec555846d5e761. #17 is a separate training prototype.
+Use git rev-parse HEAD and the current PR head checks for candidate identity.
+
+The judge adapter preserves private company provenance on export. The offline
+builder ships the judge module and example policies. Both sides of the README,
+interface and AI-disclosure changes are retained. Synthetic data only.
+Generator, baseline policies, matching methodology and reward logic are inherited.
+
+Run python docs/verification/role3-company-smoke.py for four file-fed scenarios
+including 2,000 postings, 200 documents and 12 issues. Run python -m
+ledgergym.role3_demo local --trajectory trajectories.jsonl on one line for
+a public policy walkthrough. The PR workflow runs the restricted file-fed
+demo, Python 3.11/3.12 pytest, Docker, C01–C20, transport pairs, company
+validation and a hash-checked offline install. See docs/P0_INTEGRATION_GATE.md.
+
+Release gate remains open. Role 4 owns normalization, semantic validation,
+evidence consistency and tie-breaking. Role 2 owns independent data validation.
+After owner fixes, run official reward and financial paired protocols and record
+per-case results. Captain review is required before merging or submission.

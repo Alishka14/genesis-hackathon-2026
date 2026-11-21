@@ -2,7 +2,7 @@
 
 // Only aggregate metrics and public episode files are requested. No truth.
 const $ = (id) => document.getElementById(id);
-const state = { episodes: { train: [], dev: [] }, page: 0, loading: false };
+const state = { episodes: { train: [], dev: [] }, page: 0, loading: false, requestId: 0 };
 const labels = {
   reconciliation: "Reconciliation",
   oracle: "Oracle (upper bound)",
@@ -133,7 +133,8 @@ async function loadRecords() {
   const split = $("split-select").value;
   const episode = $("episode-select").value;
   const table = $("table-select").value;
-  if (!episode || state.loading) return;
+  if (!episode) return;
+  const requestId = ++state.requestId;
   state.loading = true;
   $("prev-page").disabled = true;
   $("next-page").disabled = true;
@@ -141,14 +142,16 @@ async function loadRecords() {
   try {
     const query = new URLSearchParams({ split, episode, table, page: String(state.page) });
     const report = await getJson("/api/records?" + query.toString());
+    if (requestId !== state.requestId) return;
     renderRecords(report);
   } catch (error) {
+    if (requestId !== state.requestId) return;
     setText("record-status", "Ошибка локальной загрузки: " + String(error.message));
     const tr = el("tr");
     tr.append(el("td", "", "Не удалось прочитать публичные данные"));
     $("record-body").replaceChildren(tr);
   } finally {
-    state.loading = false;
+    if (requestId === state.requestId) state.loading = false;
   }
 }
 

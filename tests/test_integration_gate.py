@@ -101,6 +101,10 @@ def test_failed_local_gate_is_never_reported_as_success_or_release_certification
         gate, "_run",
         lambda *args, **kwargs: {"status": "fail", "exit_code": 1, "duration_sec": 0},
     )
+    monkeypatch.setattr(
+        gate, "_audit_tracked_private_files",
+        lambda: {"status": "pass", "tracked_count": 80, "forbidden_count": 0},
+    )
     report_file = tmp_path / "result.json"
     status = gate.verify(mode="full", report_path=report_file, timeout=5)
     report = json.loads(report_file.read_text())
@@ -108,8 +112,12 @@ def test_failed_local_gate_is_never_reported_as_success_or_release_certification
     assert report["contest_certified"] is False
     assert report["docker_isolation_covered"] is False
     assert report["offline_bundle_covered"] is False
-    assert set(report["stages"]) == {"pytest", "mixed_generator", "causal_pairs"}
-    assert all(row["status"] == "fail" for row in report["stages"].values())
+    assert set(report["stages"]) == {
+        "tracked_private_files", "pytest", "mixed_generator", "causal_pairs"
+    }
+    assert report["stages"]["tracked_private_files"]["status"] == "pass"
+    assert all(report["stages"][key]["status"] == "fail"
+               for key in ("pytest", "mixed_generator", "causal_pairs"))
     assert "private" not in report_file.read_text()
     assert "issue_id" not in report_file.read_text()
 
@@ -119,3 +127,33 @@ def test_invalid_gate_mode_does_not_touch_report(tmp_path):
     with pytest.raises(ValueError):
         gate.verify(mode="not-a-mode", report_path=result, timeout=5)
     assert not result.exists()
+
+
+def test_tracking_private_evaluator_labels_blocks_release(monkeypatch):
+    from subprocess import CompletedProcess
+    tracked = (
+        b"README.md\0ledgergym/company_world.py\0"
+        b"example/private/truth.json\0"
+        b"example/private/provenance.json\0"
+        b"example/private_pair_index.json\0"
+    )
+    monkeypatch.setattr(
+        gate.subprocess, "run",
+        lambda *args, **kwargs: CompletedProcess(args[0], 0, tracked, b""),
+    )
+    outcome = gate._audit_tracked_private_files()
+    assert outcome == {
+        "status": "fail", "tracked_count": 5, "forbidden_count": 3
+    }
+
+
+def test_clean_git_index_passes_without_exposing_filenames(monkeypatch):
+    from subprocess import CompletedProcess
+    monkeypatch.setattr(
+        gate.subprocess, "run",
+        lambda *args, **kwargs: CompletedProcess(
+            args[0], 0, b"README.md\0tests/test_score.py\0", b""),
+    )
+    assert gate._audit_tracked_private_files() == {
+        "status": "pass", "tracked_count": 2, "forbidden_count": 0
+    }

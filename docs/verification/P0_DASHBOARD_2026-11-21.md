@@ -32,6 +32,27 @@ python3.11 -m ledgergym.dashboard --demo --port 8765
 python3.11 -m ledgergym.dashboard --dataset /ПУТЬ/К/ДАТАСЕТУ --port 8765
 ~~~
 
+## Единая команда P0 (предпочтительно)
+
+Используй Python из активного `.venv`, в котором уже есть pytest. Для полного режима отдельно установлен `python3.11` и ранее подготовленный каталог с 8 hash-locked wheels.
+
+~~~bash
+# Быстрая проверка Python frontend/recorder + Node.js.
+python scripts/verify_p0_release.py --mode focused \
+  --report "$HOME/ledgergym-p0-focused-new.json"
+
+# Полная техническая проверка: source integration, Docker без SKIP,
+# installed-wheel/assets, ресурсы; обе выходные цели должны быть НОВЫМИ.
+python scripts/verify_p0_release.py --mode full \
+  --wheelhouse "$HOME/ledgergym-wheelhouse-2026" \
+  --bundle "$HOME/ledgergym-p0-bundle-new" \
+  --report "$HOME/ledgergym-p0-full-new.json"
+~~~
+
+Ожидаемое `success=true` пока **НЕ ПРОВЕРЕНО** на текущем HEAD. Отчёт содержит `submission_ready=false`, `contest_certified=false`, `human_signoff=pending` даже при успешных локальных тестах, поскольку не делает merge и не заменяет согласование и конкурсную приёмку. Не выдавай отсутствие `SKIP` в обычном pytest за доказательство Docker-изоляции: полный gate проверяет JUnit из отдельного прогона не менее 22 тестов.
+
+Команда **отказывается перезаписывать существующий отчёт**. Используй новые имена при повторном запуске. Дополнительно в Dashboard включена проверка Host/Origin: запросы с посторонних сайтов и DNS rebinding отвергаются кодом 403.
+
 ## Проверка P0 на новой ветке
 
 ~~~bash

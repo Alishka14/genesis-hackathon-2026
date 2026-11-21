@@ -43,7 +43,7 @@ def _find_intervention_target(public, intervention):
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("seed", [7, 81, 2026])
 @pytest.mark.parametrize("postings,documents", [(200, 20), (400, 80), (2000, 200)])
-def test_v2_clean_and_fault_are_one_or_two_documented_causal_changes(
+def test_v2_clean_and_fault_are_reversible_documented_business_changes(
         mode, seed, postings, documents):
     size = {"postings": postings, "documents": documents}
     clean, clean_truth, _ = build_settlement_company(seed, size)
@@ -59,7 +59,20 @@ def test_v2_clean_and_fault_are_one_or_two_documented_causal_changes(
     assert len(clean["tables"]["invoices"]) + len(clean["tables"]["payments"]) == documents
     assert faulty["tables"]["ledger"] == clean["tables"]["ledger"]
     assert faulty["tables"]["fx"] == clean["tables"]["fx"]
-    assert len(provenance["interventions"]) in (1, 2, 3)
+    service_edits = [i for i in provenance["interventions"]
+                     if i["table"] == "invoices.line_items"]
+    allocation_edits = [i for i in provenance["interventions"]
+                        if i["table"] == "payments"]
+    if mode in ("duplicate_invoice", "duplicate_allocation"):
+        # A single economic service identity may be repeated across MANY
+        # line items when an episode contains 2,000 postings.
+        assert service_edits
+        assert len({i["after"] for i in service_edits}) == 1
+    else:
+        assert not service_edits
+    assert len(allocation_edits) == int(mode in (
+        "payment_allocation", "duplicate_allocation"))
+    assert len(provenance["interventions"]) == len(service_edits) + len(allocation_edits)
     assert {i["type"] for i in truth["issues"]} == (
         {"duplicate_invoice", "payment_allocation"}
         if mode == "duplicate_allocation" else {mode})

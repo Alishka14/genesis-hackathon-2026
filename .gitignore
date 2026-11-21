@@ -218,3 +218,33 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Local agent planning/review scratch (never submission source).
+.superpowers/
+.role3-deps/
+
+# LedgerGym: never stage evaluator-only answers/provenance from generated episodes.
+# These patterns also apply when datasets are created in nested local folders.
+**/private/truth.json
+**/private/provenance.json
+**/private_pair_index.json
+
+# Local generated fixture directories and non-authoritative diagnostic reports.
+/ledgergym-dev-set/
+/ledgergym-mixed-local/
+/lg-v2-*/
+/ledgergym-integration-report.json
+/integration-focused.json
+/integration-full.json
+**/evaluation/trajectories.jsonl
+**/evaluation/trajectories_full.jsonl
+**/evaluation/submission/
+**/research_summary.json
+/integration-lg029.json
+/ledgergym-resource-*.json
+/ledgergym-profile-*/
+
+# Local packaged distribution experiments and release-stage reports.
+/ledgergym-wheelhouse*/
+/ledgergym-offline-final*/
+/offline-release-report.json
+/offline-release-*.json

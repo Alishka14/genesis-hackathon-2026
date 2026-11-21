@@ -3,7 +3,7 @@ import json
 import pytest
 
 from ledgergym.company_dataset import create_company_dataset
-from scripts.audit_synthetic_dataset import audit_dataset
+from ledgergym.independent_dataset_audit import audit_dataset
 
 
 def test_actual_mixed_dataset_independently_reconciled_without_private_output(tmp_path):

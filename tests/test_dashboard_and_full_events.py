@@ -98,6 +98,20 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
             assert data["total"] >= len(data["records"])
             for secret in (b'"truth"', b'"issues"', b'"provenance"', b'"private_pair_index"'):
                 assert secret not in body
+            findings_url = "/api/findings?split=train&episode=" + entry
+            _, findings_body, _ = get(findings_url)
+            findings = json.loads(findings_body)
+            assert findings["engine"] == "deterministic_public_reconciliation"
+            assert findings["independent_validation"] is False
+            assert findings["private_truth_used"] is False
+            assert findings["count"] == len(findings["findings"])
+            assert all(set(item) <= {
+                "type", "affected_ids", "claimed_amount_minor",
+                "currency", "evidence_ids", "explanation"
+            } for item in findings["findings"])
+            assert all(secret not in findings_body for secret in (
+                b'"truth"', b'"provenance"', b'"allowed_evidence_sets"',
+                b'"issue_id"', b'"expected_amount_minor"'))
             replay_url = ("/api/replay?split=train&episode=" + entry
                           + "&policy=reconciliation")
             _, replay_body, _ = get(replay_url)
@@ -122,6 +136,9 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
                  + "&table=ledger&page=1001", 400),
                 ("/api/replay?split=train&episode=" + entry
                  + "&policy=oracle", 400),
+                ("/api/findings?split=train&episode=../../private", 400),
+                ("/api/findings?split=train&episode=" + entry
+                 + "&source=truth", 400),
                 ("/api/replay?split=train&episode=../../private"
                  + "&policy=reconciliation", 400),
                 ("/api/replay?split=train&episode=" + entry
@@ -180,6 +197,40 @@ def test_dashboard_rejects_symlink_public_file(tmp_path):
                 assert b'"local_dataset_unavailable"' in exc.read()
             else:
                 raise AssertionError("symlinked dataset unexpectedly served")
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+
+
+def test_public_findings_match_known_synthetic_training_cases_without_truth_api(tmp_path):
+    root, _ = _dataset(tmp_path)
+    with dashboard_server(root, port=0) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        address = "http://127.0.0.1:" + str(server.server_address[1])
+        try:
+            with urlopen(address + "/api/episodes", timeout=10) as response:
+                index = json.load(response)
+            faulty = clean = 0
+            for split in ("train", "dev"):
+                for episode in index[split]:
+                    folder = root / split / episode["name"]
+                    # Private truth is read ONLY here, in the trusted test.
+                    truth = json.loads((folder / "private/truth.json").read_text())
+                    url = (address + "/api/findings?split=" + split +
+                           "&episode=" + episode["name"])
+                    with urlopen(url, timeout=10) as response:
+                        payload = response.read()
+                    actual = json.loads(payload)
+                    assert actual["count"] == len(truth["issues"])
+                    assert all("issue_id" not in row and
+                               "expected_amount_minor" not in row
+                               for row in actual["findings"])
+                    if actual["count"]:
+                        faulty += 1
+                    else:
+                        clean += 1
+            assert faulty >= 12 and clean >= 2
         finally:
             server.shutdown()
             thread.join(timeout=5)

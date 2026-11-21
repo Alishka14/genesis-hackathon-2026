@@ -1,6 +1,6 @@
 # LedgerGym — script for a truthful demo video (target 2:40–2:55)
 
-**Recording status:** not recorded. **Verified evidence:** operator's local macOS Python 3.14 integration PASS, Docker 22/22 PASS; installed-wheel offline gate PASS under Python 3.11.18, 45/45 tests, 145 hash-checked files, 20 episodes/60 replays. These are **local reports**, not official organizer results.
+**Recording status:** not recorded. **Verified evidence:** operator's local macOS Python 3.14 integration PASS, Docker 22/22 PASS; installed-wheel offline gate PASS under Python 3.11.18, 45/45 tests, 145 hash-checked files, 20 episodes/60 replays. Operator also ran `python3.11 -m ledgergym` and obtained `{"prototype":true,"scenario":"synthetic duplicate","terminated":true,"truncated":false,"reward":0.996,"score":{"tp":1,"fp":0,"fn":0,"f1":1.0}}`, a successful **trusted prototype** demonstration of a synthetic duplicate (not the isolated canonical evaluation). These are **local reports**, not official organizer results.
 
 ## Recording prerequisites
 
@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | 0:00–0:18 | Project name LedgerGym and financial audit scenario summary | «Финансовый аудит зависит от доказательств: одинаковые суммы сами по себе ещё не означают ошибку. Мы создали синтетическую среду, в которой можно безопасно проверять расследование платежей и документов». |
 | 0:18–0:42 | `README.md` and `docs/INTERFACES.md`; public six-file schema `ledger.csv`, `invoices.jsonl`, `payments.jsonl`, `fx.csv`, `policy.json`, `manifest.json` | «Генератор создаёт согласованную историю компании. Агент получает публичные документы и работает через ограниченный интерфейс, а эталон ответов остаётся в доверенном оценщике». |
-| 0:42–1:12 | Run `python3.11 -m ledgergym`; **inspect actual JSON first**; only if returned TP=1, point to a synthetic duplicate and score | «В учебном примере два счёта описывают одну услугу. Агент проверяет записи и предъявляет связанные доказательства». Do not call this the canonical closed-mode baseline: it is an older trusted local prototype. |
+| 0:42–1:12 | Run `python3.11 -m ledgergym`; previously observed output: `prototype=true`, `scenario=synthetic duplicate`, `tp=1`, `fp=0`, `fn=0`, `f1=1.0`, `reward=0.996`. Verify the on-camera output matches. | «В учебном примере два счёта описывают одну услугу. Агент проверяет записи и предъявляет связанные доказательства». **Explicitly label this a trusted local prototype, not a Docker-isolated canonical policy.** |
 | 1:12–1:40 | Run `python3.11 -m ledgergym.role3_demo local`. Show `VERIFIED_PASS`, `replay: exact`, actions `list_records` → `get_document` → `calculator` → `submit` | «Другой контрольный пример содержит ноль нарушений. Правильный результат здесь — не выдумывать ошибки. Действия и оценка воспроизводятся точно». |
 | 1:40–2:05 | Show sanitized `integration-full.json` in editor (from local operator) and 20 train/dev, 60 trajectories, 6 causal pairs | «В интеграционной проверке мы построили 20 эпизодов, воспроизвели 60 траекторий и проверили шесть причинных пар. В контрольных парах не было ложных обвинений». Keep benchmark scope explicit; no claims about external generalization. |
 | 2:05–2:25 | Capture a terminal running `python -m pytest -q -rs tests/test_isolated_runner.py tests/test_role3_runtime.py` **only if time permits**, or show the already observed `22 passed` result. | «Мы отдельно протестировали изоляцию агента: ограничения сети, файловой системы и очистку контейнера. 22 локальных Docker-теста прошли». |
@@ -31,7 +31,7 @@ python3.11 -m ledgergym
 python3.11 -m ledgergym.role3_demo local
 ```
 
-The first `ledgergym` example is expected to investigate a **faulty synthetic duplicate invoice**, while `role3_demo local` is a **clean canonical control**. Run both and read the actual JSON outputs *before recording*. If the former does not report a correct detected duplicate, do not claim that it did; instead show the verified company/causal dataset and state what was actually observed.
+The first `ledgergym` example **has now been observed** to identify one deliberately injected synthetic duplicate invoice: TP=1, FP=0, FN=0, F1=1.0, reward=.996. The `role3_demo local` result **has now been observed** as `VERIFIED_PASS` with an exact replay on a clean episode: TP=0, FP=0, FN=0, F1=1.0, return=.994. Recheck the exact output on camera and label the two runtimes separately. Neither example alone establishes general-purpose financial detection or official hidden benchmark success.
 
 The local full integration and offline release reports have already been tested separately. Do not re-run heavyweight processes merely for a smooth recording; an honest captured Terminal result and its origin is sufficient. Avoid presenting the oracle policy as an autonomous agent: it receives evaluator information and is intended only as an upper-bound control.
 

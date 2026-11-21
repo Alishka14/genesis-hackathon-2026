@@ -57,7 +57,8 @@ def verify_replay(env, seed, config, initial, rows):
     if replay_initial != initial:
         raise ValueError("initial replay mismatch")
     for expected in rows:
-        if expected["action"] is None and expected["truncated"]:
+        error = expected["observation"]["error"] or {}
+        if expected["action"] is None and expected["truncated"] and error.get("code") in ("timeout", "protocol_error"):
             raise ValueError("supervisor event needs an external clock or process replay")
         recorder.step(expected["action"])
         if recorder.rows[-1] != expected:

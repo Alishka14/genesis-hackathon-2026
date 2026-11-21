@@ -7,12 +7,13 @@ import json
 import logging
 import math
 from pathlib import Path
+import subprocess
+import sys
 import time
 
 from . import score
 from .env import LedgerSandbox, _record_identifier
 from .episode_io import load_public_episode
-from .generator import generate_episode
 
 LOG = logging.getLogger("ledgergym.judge")
 METRICS = ("tp", "fp", "fn", "precision", "recall", "f1")
@@ -85,13 +86,17 @@ def _validate_public(public):
     json.dumps(public, allow_nan=False)
 
 
-def _load_parts(root):
+def _load_public(root):
     folder = Path(root) / "public"
     resolved = Path(root).resolve() / "public"
     if folder.resolve() != resolved or any((folder / name).resolve() != resolved / name for name in PUBLIC_FILES):
         raise ValueError()
     public = load_public_episode(folder)
     _validate_public(public)
+    return public
+
+
+def _load_truth(root):
     truth = json.loads((Path(root) / "private" / "truth.json").read_text(encoding="utf-8"))
     if not isinstance(truth["issues"], list):
         raise ValueError()
@@ -104,7 +109,7 @@ def _load_parts(root):
                 or not all(isinstance(group, list) and all(isinstance(x, str) for x in group)
                            for group in issue["allowed_evidence_sets"])):
             raise ValueError()
-    return public, truth
+    return truth
 
 
 def _scorer(public, truth):
@@ -132,7 +137,7 @@ def score_episode(episode_dir, findings, inspection_steps):
     if type(inspection_steps) is not int or not 0 <= inspection_steps <= 100:
         raise ValueError("invalid inspection count")
     try:
-        public, truth = _load_parts(episode_dir)
+        public, truth = _load_public(episode_dir), _load_truth(episode_dir)
     except (OSError, ValueError, TypeError, KeyError, csv.Error, RecursionError, OverflowError):
         raise ValueError("invalid episode") from None
     if not bounded_json(findings) or not score.validate_submission(findings, public["manifest"]["episode_id"]):
@@ -162,6 +167,45 @@ def _transport(action):
     return {"action": name, **args}
 
 
+class ResetDeadline(TimeoutError):
+    """A reset deadline expired; the caller may inspect the evaluator's frozen empty score."""
+
+
+def _reset_command():
+    return [sys.executable, "-u", "-m", "ledgergym.reset_worker"]
+
+
+def _prepare(seed, config, deadline):
+    request = json.dumps([seed, config], allow_nan=False).encode()
+    proc = subprocess.Popen(_reset_command(), cwd=Path(__file__).resolve().parents[1], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    timed_out = False
+    try:
+        try:
+            wire, _ = proc.communicate(request, timeout=max(0., deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            proc.kill()
+            try:
+                wire, _ = proc.communicate(timeout=1.)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("reset worker cleanup unverified") from None
+    finally:
+        if proc.poll() is not None:
+            proc.stdin.close()
+            proc.stdout.close()
+    # The child flushes the empty score before it touches any public file. A
+    # killed worker can leave the second line partial, so only decode it on success.
+    first, sep, rest = wire.partition(b"\n")
+    empty_score = json.loads(first) if sep else None
+    if timed_out:
+        return None, None, empty_score
+    if proc.returncode != 0 or not rest.strip() or empty_score is None:
+        raise ValueError("invalid episode")
+    public, truth = json.loads(rest)
+    return public, truth, empty_score
+
+
 class JudgeEnv:
     def __init__(self, *, timeout=60):
         if type(timeout) not in (float, int) or not 0 < timeout <= 60:
@@ -186,11 +230,15 @@ class JudgeEnv:
             if mode not in ("closed", "train") or type(seed) is not int:
                 raise ValueError()
             if "episode_dir" in config:
-                public, truth = _load_parts(config["episode_dir"])
+                request = {"mode": mode, "episode_dir": str(Path(config["episode_dir"]).absolute())}
             elif mode == "train":
-                public, truth = generate_episode(seed, config["team_config"])
+                request = {"mode": mode, "team_config": config["team_config"]}
             else:
                 raise ValueError()
+            public, truth, empty_score = _prepare(seed, request, self.deadline)
+            if public is None or time.monotonic() >= self.deadline:
+                self._score = empty_score
+                raise ResetDeadline("episode reset timed out")
             identity = public["manifest"]["episode_id"]
             def cursor(table, offset):
                 encoded = json.dumps([identity, table, offset], separators=(",", ":")).encode("utf-8")
@@ -205,8 +253,13 @@ class JudgeEnv:
             obs, info = native.reset()
             native.started = start
             obs["task"] = "Inspect the accounting records and submit evidence for any discrepancies."
+            if time.monotonic() >= self.deadline:
+                self._score = empty_score
+                raise ResetDeadline("episode reset timed out")
             self._native = native
             return obs, info
+        except ResetDeadline:
+            raise
         except (OSError, ValueError, TypeError, KeyError, csv.Error, RecursionError, OverflowError):
             raise ValueError("invalid episode") from None
 

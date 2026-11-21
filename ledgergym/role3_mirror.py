@@ -47,7 +47,8 @@ def run():
     checks["C18"] = status("test_C18_reset_clock_includes_file_loading", "test_real_pipe_faults[import time; time.sleep(5)-timeout]")
     checks["C19"] = status("test_C19_evaluator_score_and_malformed_submit[closed]",
                            "test_C19_evaluator_score_and_malformed_submit[train]")
-    boundary = [f"test_container_boundary_and_cleanup[{kind}]" for kind in ("submit", "crash", "timeout", "malformed")]
+    boundary = [f"test_container_boundary_and_cleanup[{kind}]" for kind in
+                ("submit", "crash", "timeout", "malformed", "train_file", "train_generated", "missing_image")]
     checks["C20"] = status("test_C20_public_surface", "test_mount_and_limits", *boundary)
     pairs = {f"P{n:02d}": status(f"test_paired_transport[P{n:02d}]") for n in range(1, 21)}
     if proc.returncode != 0:

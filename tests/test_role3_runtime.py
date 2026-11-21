@@ -84,8 +84,8 @@ def available():
 
 
 @pytest.mark.skipif(not available(), reason="local Docker daemon and pinned image required")
-@pytest.mark.parametrize("behavior", ["submit", "crash", "timeout", "malformed"])
-def test_container_boundary_and_cleanup(case, tmp_path, behavior):
+@pytest.mark.parametrize("behavior", ["submit", "crash", "timeout", "malformed", "train_file", "train_generated", "missing_image"])
+def test_container_boundary_and_cleanup(case, tmp_path, behavior, monkeypatch):
     policy = tmp_path / "policy.py"
     path = str(tmp_path / "private/truth.json")
     scripts = {
@@ -97,12 +97,26 @@ assert set(os.listdir('/sys/class/net')) <= {'lo'}
 assert os.statvfs('/').f_flag & os.ST_RDONLY
 print(json.dumps({'name':'submit','args':{'findings':{'episode_id':initial['observation']['manifest']['episode_id'],'findings':[]}}}))
 message=json.loads(input())
-assert message['terminated'] and message['reward']==0 and message['info']=={}
+assert message['terminated'] and message['reward']==EXPECTED_REWARD and message['info']=={}
 """ % path, "crash": "raise SystemExit(7)", "timeout": "import time; time.sleep(60)", "malformed": "print('not JSON')"}
-    policy.write_text(scripts[behavior], encoding="utf-8")
+    if behavior == "train_file":
+        case["mode"] = "train"
+    if behavior == "train_generated":
+        case = {"mode":"train","team_config":{"scenario":"duplicate_invoice","fault":False}}
+    if behavior == "missing_image":
+        monkeypatch.setattr("ledgergym.isolated_runner.IMAGE", "ledgergym-missing-image:role3-test-unavailable")
+    expected_reward = {"train_file":-1., "train_generated":1.}.get(behavior, 0.)
+    script = scripts.get(behavior, scripts["submit"]).replace("EXPECTED_REWARD", str(expected_reward))
+    policy.write_text(script, encoding="utf-8")
     result = run_file_agent(72, case, policy, timeout=4 if behavior == "timeout" else 15)
-    assert result["outcome"] == {"submit":"terminated","crash":"protocol_error","timeout":"timeout",
-                                 "malformed":"protocol_error"}[behavior]
-    assert result["score"]["fn"] == 1 and result["trajectory"][-1]["reward"] == 0
+    assert result["outcome"] == {"crash":"protocol_error","timeout":"timeout","missing_image":"runner_error",
+                                 "malformed":"protocol_error"}.get(behavior, "terminated")
+    if behavior == "missing_image":
+        assert result["score"] is None and not result["trajectory"]
+    else:
+        assert result["score"]["fn"] == (0 if behavior == "train_generated" else 1)
+        assert result["trajectory"][-1]["reward"] == expected_reward
+    if result["outcome"] == "terminated":
+        assert result["terminal_delivery"] == {"written":True, "policy_exit_code":0}
     listed = subprocess.check_output(["docker", "ps", "-aq", "--filter", f"name=^/{result['container_name']}$"])
     assert listed.strip() == b""

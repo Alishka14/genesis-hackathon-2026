@@ -102,16 +102,18 @@ def test_C18_reset_clock_includes_file_loading(tmp_path, monkeypatch):
     from ledgergym import canonical
     answer, _ = write_case(tmp_path, 7)
     clock = [1000.]
-    original_load = canonical.load_public_episode
-    def delayed_load(folder):
-        result = original_load(folder)
+    original_prepare = canonical._prepare
+    def delayed_prepare(*args):
+        result = original_prepare(*args)
         clock[0] += 60
         return result
     monkeypatch.setattr(canonical.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(canonical, "load_public_episode", delayed_load)
+    monkeypatch.setattr(canonical, "_prepare", delayed_prepare)
     env = judge.make_env()
-    env.reset(5, config(tmp_path))
-    assert env.step(action("submit", findings=answer))[1:] == (0., False, True, {})
+    with pytest.raises(TimeoutError):
+        env.reset(5, config(tmp_path))
+    with pytest.raises(RuntimeError):
+        env.step(action("submit", findings=answer))
     assert env.final_score["fn"] == 1
 
 

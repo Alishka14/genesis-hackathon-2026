@@ -31,6 +31,7 @@ INSTALLED_TESTS = (
     "tests/test_research_robustness.py",
     "tests/test_research_report.py",
     "tests/test_cab_invariance.py",
+    "tests/test_cab_company_pairs.py",
 )
 
 

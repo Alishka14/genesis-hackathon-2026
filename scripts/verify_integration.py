@@ -101,6 +101,35 @@ def _assert_pair_metrics(summary: dict[str, Any]) -> dict[str, Any]:
             "audited_fault_issues": 8, "clean_false_accusations": 0}
 
 
+def _audit_tracked_private_files() -> dict[str, Any]:
+    """Fail closed if evaluator-only synthetic answer files are tracked by Git."""
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT, check=False,
+            capture_output=True,
+        )
+    except OSError:
+        return {"status": "fail", "reason": "git_unavailable"}
+    if completed.returncode != 0:
+        return {"status": "fail", "reason": "git_index_unavailable"}
+    names = [part.decode("utf-8", errors="replace").replace("\\", "/")
+             for part in completed.stdout.split(b"\x00") if part]
+    forbidden = []
+    for name in names:
+        parts = name.split("/")
+        if (name.endswith("/private/truth.json")
+                or name.endswith("/private/provenance.json")
+                or name.endswith("/private_pair_index.json")
+                or name == "private_pair_index.json"
+                or parts[-1] in {".env", ".envrc"}):
+            forbidden.append(name)
+    if forbidden:
+        print("Tracked evaluator-only files (remove from Git index): "
+              + ", ".join(forbidden[:10]), file=sys.stderr)
+    return {"status": "fail" if forbidden else "pass",
+            "tracked_count": len(names), "forbidden_count": len(forbidden)}
+
+
 def verify(*, mode: str, report_path: Path, timeout: int) -> int:
     if mode not in {"focused", "full"} or timeout < 1:
         raise ValueError("invalid gate configuration")
@@ -121,6 +150,7 @@ def verify(*, mode: str, report_path: Path, timeout: int) -> int:
     stages = report["stages"]
     test_paths = FOCUSED if mode == "focused" else ["tests"]
     try:
+        stages["tracked_private_files"] = _audit_tracked_private_files()
         stages["pytest"] = _run(
             "pytest", [sys.executable, "-m", "pytest", "-q", "-rs",
                        "-p", "no:cacheprovider", *test_paths],

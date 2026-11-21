@@ -162,8 +162,8 @@ def false_accusation_analysis(issues, findings, public_ids, *,
                               case_annotations=None, inspection_steps=0):
     """Partition the *official* FP with strict, mutually exclusive priority.
 
-    Priority: duplicate of a true match > fabricated/unattributable ID >
-    annotated hard negative > annotated standard-valid > unattributed.
+    Priority: duplicate of a true match > fabricated/issue-implicated ID >
+    uniquely attributable validated operation > unattributed.
 
     Case labels are evaluator-only research metadata, not sent to policies.
     When the source supplies no labels, unknown cases remain UNATTRIBUTED,
@@ -171,6 +171,9 @@ def false_accusation_analysis(issues, findings, public_ids, *,
     """
     public_ids = set(public_ids)
     cases = _normalized_cases(case_annotations, public_ids)
+    implicated_ids = {
+        identifier for issue in issues for identifier in issue["affected_ids"]
+    }
     score = evaluate(issues, findings, public_ids, inspection_steps)
     matched, edges = exact_matching(issues, findings, public_ids)
     if len(matched) != score["tp"]:
@@ -186,21 +189,26 @@ def false_accusation_analysis(issues, findings, public_ids, *,
         evidence = set(finding["evidence_ids"])
         if edges[index]:
             category = "FP_duplicate"
-        elif not affected <= public_ids or not evidence <= public_ids:
+        elif (not affected or not affected <= public_ids
+              or not evidence <= public_ids or affected & implicated_ids):
+            # A wrong claim touching a real issue is not evidence that the
+            # *other* linked operation was a clean false accusation.
             category = "FP_unattributed"
         else:
+            # Attribute only if the complete accused set fits ONE validated
+            # operation. Partial overlaps can double-count unrelated cases.
             hits = [
                 (case_id, kind)
                 for case_id, (kind, ids) in cases.items()
-                if affected & ids
+                if affected <= ids
             ]
-            if any(kind == SUSPICIOUS_BUT_VALID for _, kind in hits):
-                category = "FP_hard_negative"
-            elif any(kind == STANDARD_VALID for _, kind in hits):
-                category = "FP_standard_valid"
+            if len(hits) == 1:
+                case_id, kind = hits[0]
+                category = ("FP_hard_negative" if kind == SUSPICIOUS_BUT_VALID
+                            else "FP_standard_valid")
+                affected_cases.add(case_id)
             else:
                 category = "FP_unattributed"
-            affected_cases.update(case_id for case_id, _ in hits)
         counts[category] += 1
         details.append(category)
     if sum(counts.values()) != score["fp"]:

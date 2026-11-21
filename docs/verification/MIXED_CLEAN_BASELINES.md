@@ -58,6 +58,8 @@ Scoring remains `clip(2*F1 - 1 - 0.002*inspection_steps, -1, 1)`, unchanged. Mat
 - `clean_false_accusations[scope][accounting_model][policy]`, where `scope` = `train`, `dev` or `overall`.
 - Each clean slice reports `episodes`, `false_accusation_episodes`, `fp`, `false_accusation_rate` (clean episodes with `FP > 0` divided by clean episodes), `mean_f1` and `mean_reward`.
 
+**Shortcut risk (explicit):** In this open development collection every v2 episode is clean, and the accounting model version is visible in the public `policy.json`. An agent can simply learn that `accrual_company_v2` implies empty findings. This is an intentionally scoped **false-accusation diagnostic slice**, not a label-balanced hidden benchmark or a reliable estimate of generalization. A future rigorous benchmark needs v2 fault-injected paired controls before using v2 for held-out performance claims. The extended summary also includes `shortcut_warning`.
+
 **Interpretation:** These are *measured baseline errors on synthetic clean cases*, not a learned-agent result or a measure of real-world auditor accuracy. `mark_all` and `seeded_random` intentionally over-accuse. `reconciliation` contains model-specific code and should **not** be presented as generalizable AI performance. A zero false-allegation rate on four open clean v2 episodes does not establish robustness on novel faults or withheld companies.
 
 `trajectories.jsonl` contains only non-oracle public interactions; private truth, provenance, private seeds and issue IDs never appear in those action logs. The trusted evaluator reads private truth only to compute aggregate scores.

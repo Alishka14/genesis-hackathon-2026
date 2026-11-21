@@ -1,0 +1,118 @@
+{
+  "repeated_affected": {
+    "expected": [
+      1,
+      0,
+      0
+    ],
+    "actual": [
+      null,
+      null,
+      null
+    ],
+    "status": "FAIL"
+  },
+  "repeated_evidence": {
+    "expected": [
+      1,
+      0,
+      0
+    ],
+    "actual": [
+      null,
+      null,
+      null
+    ],
+    "status": "FAIL"
+  },
+  "unknown_type": {
+    "expected": [
+      0,
+      1,
+      1
+    ],
+    "actual": [
+      null,
+      null,
+      null
+    ],
+    "status": "FAIL"
+  },
+  "currency_case": {
+    "expected": [
+      0,
+      1,
+      1
+    ],
+    "actual": [
+      null,
+      null,
+      null
+    ],
+    "status": "FAIL"
+  },
+  "accessible_extra": {
+    "expected": [
+      1,
+      0,
+      0
+    ],
+    "actual": [
+      1,
+      0,
+      0
+    ],
+    "status": "PASS"
+  },
+  "unaddressable_extra": {
+    "expected": [
+      0,
+      1,
+      1
+    ],
+    "actual": [
+      0,
+      1,
+      1
+    ],
+    "status": "PASS"
+  },
+  "M11": {
+    "expected": {
+      "A": 0,
+      "B": 1
+    },
+    "actual": {
+      "A": 0,
+      "B": 1
+    },
+    "tp": 2,
+    "status": "PASS"
+  },
+  "native_entity_reference": {
+    "expected": [
+      0,
+      1,
+      1
+    ],
+    "actual": [
+      0,
+      1,
+      1
+    ],
+    "status": "PASS"
+  },
+  "canonical_same_reference": {
+    "expected": [
+      0,
+      1,
+      1
+    ],
+    "actual": [
+      0,
+      1,
+      1
+    ],
+    "status": "PASS"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "duplicate_affected_id": {
+    "owner": "Role 4",
+    "status": "CONFIRMED_FAIL",
+    "expected_metrics": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 0
+    },
+    "actual": {
+      "tp": null,
+      "fp": null,
+      "fn": null,
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "return": -1.0
+    }
+  },
+  "unknown_string_type": {
+    "owner": "Role 4",
+    "status": "CONFIRMED_FAIL",
+    "expected_metrics": {
+      "tp": 1,
+      "fp": 1,
+      "fn": 0
+    },
+    "actual": {
+      "tp": null,
+      "fp": null,
+      "fn": null,
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "return": -1.0
+    }
+  },
+  "wrong_currency_case": {
+    "owner": "Role 4",
+    "status": "CONFIRMED_FAIL",
+    "expected_metrics": {
+      "tp": 0,
+      "fp": 1,
+      "fn": 1
+    },
+    "actual": {
+      "tp": null,
+      "fp": null,
+      "fn": null,
+      "precision": null,
+      "recall": null,
+      "f1": null,
+      "return": -1.0
+    }
+  }
+}

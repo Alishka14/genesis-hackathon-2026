@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledgergym"
+version = "0.1.0.dev16"
+description = "Synthetic financial audit environment for local research"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+license-files = []
+
+[project.scripts]
+ledgergym = "ledgergym.__main__:main"
+ledgergym-company = "ledgergym.company_dataset:main"
+ledgergym-evaluate = "ledgergym.fixture_evaluation:main"
+ledgergym-isolated = "ledgergym.isolated_runner:main"
+
+[tool.setuptools]
+packages = ["ledgergym", "examples"]
+py-modules = ["judge_adapter"]
+
+[tool.setuptools.package-data]
+ledgergym = ["dashboard_static/*.html", "dashboard_static/*.css", "dashboard_static/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 const state = {
   episodes: { train: [], dev: [] }, page: 0, loading: false, requestId: 0,
   replaySteps: [], replayStep: 0, replayRequestId: 0, replayFormat: null,
+  findingsRequestId: 0,
 };
 const labels = {
   reconciliation: "Reconciliation",
@@ -87,6 +88,7 @@ function updateEpisodes() {
   state.page = 0;
   void loadRecords();
   void loadReplay();
+  void loadFindings();
 }
 
 function cellValue(value) {
@@ -156,6 +158,67 @@ async function loadRecords() {
     $("record-body").replaceChildren(tr);
   } finally {
     if (requestId === state.requestId) state.loading = false;
+  }
+}
+
+function renderFindings(report) {
+  setText("findings-count", report.count ?? "—");
+  setText("findings-scope", String(report.accounting_model ?? "development") +
+    " · public-rule checker · not hidden truth");
+  const root = $("findings-list");
+  root.replaceChildren();
+  const items = Array.isArray(report.findings) ? report.findings : [];
+  if (items.length === 0) {
+    root.append(el("div", "findings-clean",
+      "Расхождений по поддерживаемым финансовым правилам не найдено. Это не означает независимую аудиторскую сертификацию."));
+    return;
+  }
+  for (const [index, finding] of items.entries()) {
+    const card = el("article", "finding-card");
+    const header = el("div", "finding-head");
+    header.append(
+      el("span", "finding-index", String(index + 1).padStart(2, "0")),
+      el("strong", "finding-type", String(finding.type ?? "unknown_issue")),
+    );
+    const amount = el("div", "finding-amount",
+      String(finding.claimed_amount_minor ?? "—") + " minor · " +
+      String(finding.currency ?? "—"));
+    const affectedLabel = el("div", "finding-label", "AFFECTED RECORDS");
+    const affected = el("div", "finding-tags");
+    for (const id of Array.isArray(finding.affected_ids) ? finding.affected_ids : []) {
+      affected.append(el("span", "finding-tag", String(id)));
+    }
+    const evidenceLabel = el("div", "finding-label", "PUBLIC EVIDENCE IDS");
+    const evidence = el("div", "finding-tags evidence");
+    for (const id of Array.isArray(finding.evidence_ids) ? finding.evidence_ids : []) {
+      evidence.append(el("span", "finding-tag", String(id)));
+    }
+    card.append(header, amount, affectedLabel, affected, evidenceLabel, evidence);
+    if (finding.explanation) {
+      card.append(el("p", "finding-explanation", String(finding.explanation)));
+    }
+    root.append(card);
+  }
+}
+
+async function loadFindings() {
+  const split = $("split-select").value;
+  const episode = $("episode-select").value;
+  const request = ++state.findingsRequestId;
+  setText("findings-count", "—");
+  setText("findings-scope", "Загрузка результатов проверки…");
+  $("findings-list").replaceChildren(el("div", "loading", "Проверка публичных правил…"));
+  if (!episode) return;
+  try {
+    const params = new URLSearchParams({ split, episode });
+    const report = await getJson("/api/findings?" + params.toString());
+    if (request !== state.findingsRequestId) return;
+    renderFindings(report);
+  } catch (error) {
+    if (request !== state.findingsRequestId) return;
+    setText("findings-scope", "Проверка недоступна");
+    $("findings-list").replaceChildren(
+      el("div", "loading", "Ошибка публичной сверки: " + String(error.message)));
   }
 }
 
@@ -260,6 +323,7 @@ function bindControls() {
     state.page = 0;
     void loadRecords();
     void loadReplay();
+    void loadFindings();
   });
   $("table-select").addEventListener("change", () => {
     state.page = 0;

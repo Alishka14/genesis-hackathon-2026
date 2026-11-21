@@ -294,3 +294,226 @@ def audit_v1(public, truth):
             "issues_audited": issue_count, "journal_rows": len(t["ledger"]),
             "invoice_count": len(invoices), "payment_count": len(payments),
             "journal_net_minor": net, "independent_derivation": True}
+
+
+def audit_v2(public, truth):
+    """Second implementation of bounded v2 split/refund financial semantics.
+
+    Checks invoice posting amounts, transfers, remittance basis, refunds and
+    derived evidence from the six public files without calling v2 production
+    validators. Does not approve arbitrary accounting rules or netting.
+    """
+    _need(isinstance(public, dict) and isinstance(public.get("tables"), dict),
+          "bad v2 public data")
+    manifest, policy, t = public["manifest"], public["policy"], public["tables"]
+    _need(policy["accounting_model"] == "accrual_company_v2"
+          and manifest["schema_version"] == "0.4-company-settlements"
+          and manifest["base_currency"] == "KZT"
+          and manifest["timezone"] == policy["cutoff_timezone"] == "+05:00",
+          "unsupported settlement model")
+    _need(set(t) == {"invoices", "payments", "ledger", "fx"}
+          and manifest["counts"] == {key: len(rows) for key, rows in t.items()},
+          "v2 manifest/table inventory")
+    def moment(value):
+        stamp = datetime.fromisoformat(value)
+        _need(stamp.utcoffset() is not None, "missing v2 timestamp offset")
+        return stamp.astimezone(timezone(timedelta(hours=5)))
+    start, end = moment(manifest["period_start"]), moment(manifest["period_end"])
+    rates = {}
+    for rate in t["fx"]:
+        _need(rate["source_currency"] == "USD"
+              and rate["target_currency"] == "KZT"
+              and rate["date"] not in rates, "v2 malformed FX rate")
+        rates[rate["date"]] = rate
+    def convert(currency, amount, stamp):
+        if currency == "KZT":
+            return amount, None
+        _need(currency == "USD", "v2 foreign currency not supported")
+        rate = rates.get(moment(stamp).date().isoformat())
+        _need(rate is not None, "v2 missing rate")
+        return _converted(amount, rate["rate"]), rate["rate_id"]
+    invoices = {x["invoice_id"]: x for x in t["invoices"]}
+    payments = {x["payment_id"]: x for x in t["payments"]}
+    _need(len(invoices) == len(t["invoices"])
+          and len(payments) == len(t["payments"]), "duplicate business source IDs")
+    journal_invoice, journal_payment, capital = defaultdict(list), defaultdict(list), []
+    net = 0
+    for row in t["ledger"]:
+        debit, credit = row["debit_minor"], row["credit_minor"]
+        _need(type(debit) is type(credit) is int and debit >= 0 and credit >= 0
+              and (debit > 0) != (credit > 0) and row["currency"] == "KZT",
+              "v2 journal money invalid")
+        _need(start <= moment(row["timestamp"]) <= end
+              and row["reporting_period"] == moment(row["timestamp"]).strftime("%Y-%m"),
+              "v2 journal cutoff invalid")
+        net += debit - credit
+        if row["payment_id"] is not None:
+            _need(row["payment_id"] in payments, "unknown v2 payment journal")
+            journal_payment[row["payment_id"]].append(row)
+        elif row["invoice_id"] is not None:
+            _need(row["invoice_id"] in invoices, "unknown v2 invoice journal")
+            journal_invoice[row["invoice_id"]].append(row)
+        else:
+            capital.append(row)
+    _need(net == 0, "v2 debit/credit imbalance")
+    payable_id = {}
+    obligations = defaultdict(list)
+    for inv in invoices.values():
+        lines = inv["line_items"]
+        _need(_amount(inv["total_minor"]) and lines
+              and all(_amount(x["amount_minor"]) for x in lines)
+              and sum(x["amount_minor"] for x in lines) == inv["total_minor"],
+              "v2 invoice line/total mismatch")
+        _need(start <= moment(inv["issued_at"]) <= end
+              and moment(inv["due_at"]) >= moment(inv["issued_at"]),
+              "v2 invoice date invalid")
+        refs = {x["service_ref"] for x in lines}
+        _need(len(refs) == 1, "v2 invoice mixed service")
+        obligations[(inv["entity_id"], next(iter(refs)))].append(inv)
+        total, fxid = convert(inv["currency"], inv["total_minor"], inv["issued_at"])
+        parts = [convert(inv["currency"], x["amount_minor"], inv["issued_at"])[0]
+                 for x in lines[:-1]]
+        parts.append(total - sum(parts))
+        rows = journal_invoice[inv["invoice_id"]]
+        ap = [x for x in rows if x["account"] == "payable"]
+        expense = {x["line_id"]: x for x in rows if x["account"] == "expense"}
+        _need(len(rows) == len(lines) + 1 and len(ap) == 1 and
+              len(expense) == len(lines), "v2 invoice posting cardinality")
+        payable_id[inv["invoice_id"]] = ap[0]["row_id"]
+        _need(ap[0]["credit_minor"] == total and ap[0]["debit_minor"] == 0,
+              "v2 payable FX total mismatch")
+        for line, value in zip(lines, parts):
+            row = expense.get(line["line_id"])
+            _need(row is not None and row["debit_minor"] == value
+                  and row["credit_minor"] == 0, "v2 invoice component posting")
+        _need(all(row["entity_id"] == inv["entity_id"]
+                  and moment(row["timestamp"]) == moment(inv["issued_at"])
+                  and row["rate_id"] == fxid for row in rows),
+              "v2 invoice posting provenance")
+    derived = []
+    for group in obligations.values():
+        _need(len(group) <= 2, "v2 too many matching service obligations")
+        if len(group) == 2:
+            x, y = group
+            _need(x["currency"] == y["currency"]
+                  and x["total_minor"] == y["total_minor"],
+                  "v2 duplicate invoice ambiguous")
+            derived.append(_issue("duplicate_invoice",
+                                  [x["invoice_id"], y["invoice_id"]],
+                                  x["total_minor"], x["currency"],
+                                  [x["doc_id"], y["doc_id"],
+                                   payable_id[x["invoice_id"]],
+                                   payable_id[y["invoice_id"]]]))
+    original_allocations = {}
+    applied = defaultdict(int)
+    outflow = 0
+    transfer_times = []
+    normal = [p for p in payments.values() if p["kind"] == "payment"]
+    refunds = [p for p in payments.values() if p["kind"] == "refund"]
+    _need(normal and refunds and len(normal) + len(refunds) == len(payments),
+          "v2 unsupported payment kind")
+    for p in sorted(normal, key=lambda p: (moment(p["timestamp"]), p["payment_id"])):
+        pid, stamp = p["payment_id"], moment(p["timestamp"])
+        _need(start <= stamp <= end and _amount(p["amount_minor"]), "v2 bad normal payment")
+        actual = p["invoice_refs"]
+        _need(isinstance(actual, list) and actual
+              and len({x["invoice_id"] for x in actual}) == len(actual),
+              "v2 invalid invoice reference list")
+        _need(all(x["invoice_id"] in invoices and _amount(x["amount_minor"])
+                  and invoices[x["invoice_id"]]["currency"] == p["currency"]
+                  and invoices[x["invoice_id"]]["entity_id"] == p["entity_id"]
+                  and moment(invoices[x["invoice_id"]]["issued_at"]) <= stamp
+                  for x in actual), "v2 payment reference scope invalid")
+        basis = p.get("allocation_basis")
+        if basis is not None:
+            _need(len(basis) == 2 and len(actual) == 2 and
+                  p["currency"] == "KZT", "v2 documented split malformed")
+            expected = {x["invoice_id"]: x["amount_minor"] for x in basis}
+            applied_refs = {x["invoice_id"]: x["amount_minor"] for x in actual}
+            _need(set(expected) == set(applied_refs)
+                  and len(expected) == 2
+                  and sum(expected.values()) == p["amount_minor"],
+                  "v2 documented split mismatch")
+            differences = {iid: expected[iid] - applied_refs[iid] for iid in expected
+                           if expected[iid] != applied_refs[iid]}
+            _need(len(differences) <= 1 and
+                  all(value > 0 for value in differences.values()),
+                  "v2 unsupported split discrepancy")
+            if differences:
+                iid, amount = next(iter(differences.items()))
+                payable = [r for r in journal_payment[pid] if r["account"] == "payable"]
+                _need(len(payable) == 1, "v2 missing payment payable evidence")
+                derived.append(_issue("payment_allocation", [iid, pid], amount, "KZT",
+                                      [p["doc_id"], payable[0]["row_id"],
+                                       *[invoices[name]["doc_id"] for name in expected]]))
+        else:
+            _need(sum(x["amount_minor"] for x in actual) == p["amount_minor"],
+                  "v2 normal transfer unallocated")
+        _need(sum(x["amount_minor"] for x in actual) <= p["amount_minor"],
+              "v2 payment money created")
+        for ref in actual:
+            applied[ref["invoice_id"]] += ref["amount_minor"]
+            original_allocations[(pid, ref["invoice_id"])] = ref["amount_minor"]
+        converted, fxid = convert(p["currency"], p["amount_minor"], p["timestamp"])
+        rows = journal_payment[pid]
+        payable = [r for r in rows if r["account"] == "payable"]
+        bank = [r for r in rows if r["account"] == "bank"]
+        _need(len(rows) == 2 and len(payable) == len(bank) == 1
+              and payable[0]["debit_minor"] == bank[0]["credit_minor"] == converted
+              and payable[0]["credit_minor"] == bank[0]["debit_minor"] == 0,
+              "v2 payment journal not accounted")
+        _need(all(x["entity_id"] == p["entity_id"] and
+                  x["rate_id"] == fxid and moment(x["timestamp"]) == stamp
+                  for x in rows), "v2 transfer posting source wrong")
+        transfer_times.append(stamp)
+        outflow += converted
+    refunded = defaultdict(int)
+    for p in refunds:
+        origin_id = p["original_payment_id"]
+        origin = payments.get(origin_id)
+        _need(origin in normal and p["currency"] == origin["currency"] == "KZT"
+              and p["entity_id"] == origin["entity_id"]
+              and moment(p["timestamp"]) > max(transfer_times),
+              "v2 unmatched refund source/time")
+        _need(_amount(p["amount_minor"]) and
+              sum(x["amount_minor"] for x in p["invoice_refs"]) == p["amount_minor"],
+              "v2 refund sum invalid")
+        for x in p["invoice_refs"]:
+            key = (origin_id, x["invoice_id"])
+            _need(key in original_allocations and _amount(x["amount_minor"]),
+                  "v2 refund references unrelated invoice")
+            refunded[key] += x["amount_minor"]
+            _need(refunded[key] <= original_allocations[key], "v2 over-refund")
+            applied[x["invoice_id"]] -= x["amount_minor"]
+        rows = journal_payment[p["payment_id"]]
+        payable = [r for r in rows if r["account"] == "payable"]
+        bank = [r for r in rows if r["account"] == "bank"]
+        _need(len(rows) == 2 and len(payable) == len(bank) == 1
+              and payable[0]["credit_minor"] == bank[0]["debit_minor"] == p["amount_minor"]
+              and payable[0]["debit_minor"] == bank[0]["credit_minor"] == 0,
+              "v2 refund accounting mismatch")
+        outflow -= p["amount_minor"]
+    _need(all(0 <= applied[iid] <= inv["total_minor"] for iid, inv in invoices.items()),
+          "v2 applied invoice balance impossible")
+    bank = [r for r in capital if r["account"] == "bank"]
+    equity = [r for r in capital if r["account"] == "equity"]
+    _need(len(capital) == 2 and len(bank) == len(equity) == 1
+          and bank[0]["debit_minor"] == equity[0]["credit_minor"]
+          and bank[0]["debit_minor"] >= outflow,
+          "v2 capital inadequate")
+    count = verify_truth_evidence(derived, truth, public)
+    return {"status": "PASS", "model": "accrual_company_v2",
+            "issues_audited": count, "journal_rows": len(t["ledger"]),
+            "invoice_count": len(invoices), "payment_count": len(payments),
+            "refund_count": len(refunds), "journal_net_minor": net,
+            "independent_derivation": True}
+
+
+def audit_company(public, truth):
+    """Dispatch only versioned synthetic models within trusted evaluator code."""
+    model = public["policy"].get("accounting_model")
+    if model == "accrual_company_v1":
+        return audit_v1(public, truth)
+    if model == "accrual_company_v2":
+        return audit_v2(public, truth)
+    raise ValueError("independent audit: unsupported accounting model")

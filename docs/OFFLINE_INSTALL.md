@@ -1,4 +1,4 @@
-# Офлайн-поставка LedgerGym 0.1.0.dev17
+# Офлайн-поставка LedgerGym 0.1.0.dev18
 
 Архив содержит wheel LedgerGym, исходный sdist, восемь универсальных wheels тестовых/сборочных зависимостей, тесты, примеры, документы, лицензии и SHA-256. Нужен заранее установленный Python 3.11 с `venv` и `pip`. Интерпретатор и Docker-образ в архив не входят. Целевая проверенная версия — CPython 3.11.11. Поддержка Windows не проверена; colorama включена для полноты зависимостей pytest.
 
@@ -41,7 +41,7 @@ Runner использует `--pull=never` и `--network none`; оценщик �
 
 ```sh
 .venv/bin/python -m pip install --no-index --find-links wheels --require-hashes --only-binary=:all: -r requirements-build.lock
-.venv/bin/python -m pip wheel --no-index --no-deps --no-build-isolation --wheel-dir rebuilt source/ledgergym-0.1.0.dev17.tar.gz
+.venv/bin/python -m pip wheel --no-index --no-deps --no-build-isolation --wheel-dir rebuilt source/ledgergym-0.1.0.dev18.tar.gz
 ```
 
 Для создания аналогичного полного каталога из checkout: сначала установить закреплённые build-зависимости, затем `python scripts/build_offline_bundle.py /путь/к/wheels /новый/каталог`. Скрипт проверяет hashes всех восьми сторонних wheels, собирает wheel/sdist и отказывается перезаписывать существующий каталог. Подготовка wheelhouse из интернета — отдельный предварительный шаг; скачайте все восемь версий из lock-файлов, включая colorama независимо от ОС сборки. Функциональная повторяемость проверяется тестами; побайтовая воспроизводимость архивов не заявляется.

@@ -1,6 +1,5 @@
 """Trusted judge transport. Only JSON messages cross the policy process boundary."""
 import copy
-from collections import Counter
 import csv
 import hashlib
 import json
@@ -14,6 +13,7 @@ import time
 from . import score
 from .env import LedgerSandbox, _record_identifier
 from .episode_io import load_public_episode
+from .record_ids import addressable_ids
 
 LOG = logging.getLogger("ledgergym.judge")
 METRICS = ("tp", "fp", "fn", "precision", "recall", "f1")
@@ -113,12 +113,7 @@ def _load_truth(root):
 
 
 def _scorer(public, truth):
-    ids = set()
-    for table, rows in public["tables"].items():
-        counts = Counter(_record_identifier(table, row) for row in rows)
-        ids.update(key for key, count in counts.items() if count == 1)
-        if table in ("invoices", "payments"):
-            ids.update(row["doc_id"] for row in rows)
+    ids = addressable_ids(public)
     def evaluate(findings, steps):
         return score.evaluate(truth["issues"], findings, ids, steps)
     return evaluate

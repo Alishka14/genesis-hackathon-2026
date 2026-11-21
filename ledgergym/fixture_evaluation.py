@@ -9,6 +9,7 @@ from .env import LedgerSandbox
 from .event_recorder import public_events
 from .replay import replay_actions
 from .score import evaluate
+from .record_ids import addressable_ids
 
 
 def evaluate_fixture_dataset(dataset, output):
@@ -48,8 +49,7 @@ def evaluate_fixture_dataset(dataset, output):
             if index['kind'] == 'synthetic_company_development':
                 from .company_checks import validate_company
                 validate_company(public, truth)
-            public_ids = {v for rows in public['tables'].values() for row in rows for key, v in row.items()
-                          if key.endswith('_id') and isinstance(v, str)}
+            public_ids = addressable_ids(public)
             for name in policies:
                 result = run_baseline(public, truth, name, seed=0)
                 score = result['score']

@@ -185,3 +185,7 @@ Private truth: `issues` содержит `issue_id`, `type`, `affected_ids`, `ex
 ## Совместимые отчётные артефакты (план v2, 21.11.2026)
 
 Новый `events.jsonl` использует `ledgergym-events-v1`; reset имеет step=-1, действия — прежние индексы с нуля. Случайные page tokens заменяются переносимыми from_step ссылками. Подробный контракт: `EVENT_RECORDING.md`. `trajectories.jsonl`, JSON среды, scorer и reward сохраняют прежние контракты. `verification.json` — отдельный служебный результат единой локальной проверки, не агентское наблюдение.
+
+## Evidence и matching: совместимое исправление 21.11.2026
+
+Доступность ID для evaluator едина в native/canonical/baseline/replay/restricted native путях: ID уникальной читаемой записи разрешённой таблицы либо doc_id invoices/payments. Сам foreign key не даёт полномочия использовать его как evidence. Дополнительные доступные доказательства по-прежнему разрешены. Максимальная мощность matching сохранена; tie-break описан в MATCHING_SPEC.md. Assignment не включается в публичный score. Форма submit, invalid-submit, reward и limits не меняются; открытые разногласия вынесены в MATCHER_CONTRACT_DECISIONS.md.

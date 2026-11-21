@@ -5,6 +5,7 @@ from .env import LedgerSandbox
 from .fx_world import _convert
 from .period_world import _period
 from .score import evaluate
+from .record_ids import addressable_ids
 
 
 def _finding(kind, affected, amount, currency, evidence):
@@ -74,7 +75,7 @@ def run_baseline(public, truth, policy, seed=0):
     """
     if policy not in {'oracle', 'seeded_random', 'mark_all', 'reconciliation'}:
         raise ValueError('unknown baseline')
-    public_ids = {v for rows in public['tables'].values() for row in rows for key, v in row.items() if key.endswith('_id') and isinstance(v, str)}
+    public_ids = addressable_ids(public)
     if policy == 'oracle':
         findings = [_finding(i['type'], i['affected_ids'], i['expected_amount_minor'], i['currency'], i['allowed_evidence_sets'][0]) for i in truth['issues']]
         return {'score': evaluate(truth['issues'], findings, public_ids, 0), 'trajectory': None}

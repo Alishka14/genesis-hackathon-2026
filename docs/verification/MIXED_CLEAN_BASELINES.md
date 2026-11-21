@@ -1,4 +1,4 @@
-# LG-024 — mixed train/dev benchmark for clean split/refund hard negatives
+# LG-024/LG-025 — mixed train/dev benchmark for v2 clean and faulty split/refund episodes
 
 **Status:** implementation candidate; needs CI and owner review. All data are synthetic. These results are from open development episodes, **not** organizer-hidden GENESIS evaluations.
 
@@ -6,7 +6,7 @@
 
 Measure false allegations by four existing baseline policies when an episode includes *legal but misleading* financial signals: same-valued invoices for distinct services, a split payment allocated to two legitimate invoices, and a documented supplier refund. These are the genuine six-file `accrual_company_v2` episodes from LG-023, not the earlier standalone toy fixtures.
 
-The old default dataset and generator stay unchanged. The new dataset format is opt-in via an explicit CLI flag; no v2 faults are silently asserted or invented.
+The old default dataset and generator stay unchanged. The opt-in profile now includes one *clean* and one **evidence-backed faulty** v2 episode in each split. v2 still preserves the same public policy/schema across both outcomes.
 
 ## One-command generation and evaluation
 
@@ -32,17 +32,17 @@ Without the flag, legacy `create_company_dataset(root, seed=...)` and its index 
 | v1 singleton faults (4 families) | 4 | Duplicate, allocation, FX/date, period cutoff |
 | v1 compounds | 2 | FX+allocation, duplicate+allocation |
 | v1 stress (12 issues) | 1 | Check scoring and investigative step budgets |
-| **v2 clean** | **2** | Full six-file split allocations and supplier refunds |
+| **v2 clean** | **1** | Legitimate split payment and supplier refund |\n| **v2 faulty** | **1** | Same v2 model with a documented allocation or duplicate obligation fault |
 | **Total** | **10** | 8 v1 + 2 v2 |
 
 Generator seeds for the 20 episodes are unique and stored only in private provenance. `index.json` contains opaque episode IDs and relative paths, not fault flags, secrets, seeds or private issue labels. Train/dev do not overlap.
 
-In this **opt-in** design, the former additional four-single-fault mix and one redundant v1 clean slot are replaced with two v2 clean slots; all four singleton families, both compound types and a maximal 12-issue case remain covered.
+The v2 faulty episode uses a payment-allocation fault in train and a duplicate-invoice fault in dev; both are resolved from public evidence. All four v1 singleton families, both compound types and a 12-issue case remain covered. See [V2_CAUSAL_PAIRS.md](V2_CAUSAL_PAIRS.md) for same-seed clean/fault pairs and the compound v2 counterpart.
 
 ## Evaluated policies
 
 1. `seeded_random` — deliberately naive single suspicion;
-2. `reconciliation` — reads public evidence, checks the published financial model and reports independently detected discrepancies; for clean-only `accrual_company_v2`, runs `validate_settlement_company` on observed **public tables** and submits no findings only after validation passes;
+2. `reconciliation` — reads public evidence, checks the published financial model and reports independently detected discrepancies; on `accrual_company_v2`, uses public `allocation_basis` and applied `invoice_refs` alongside the service identity and audited journal. It submits no findings only when the public-only inspection finds none;
 3. `mark_all` — deliberately accuses many invoices and exposes false positives;
 4. `oracle` — evaluator-only perfect reference, **not** a policy available to an untrusted agent; no policy trajectory.
 
@@ -54,13 +54,13 @@ Scoring remains `clip(2*F1 - 1 - 0.002*inspection_steps, -1, 1)`, unchanged. Mat
 
 `summary.json` contains its historical per-policy `tp/fp/fn/mean_f1/mean_reward/mean_inspection_steps` entries **plus**, in this opt-in mode:
 
-- `model_counts[split][accounting_model]`
+- `model_counts[split][accounting_model]`\n- `v2_label_counts[split]`: one clean and one faulty v2 episode per split
 - `clean_false_accusations[scope][accounting_model][policy]`, where `scope` = `train`, `dev` or `overall`.
 - Each clean slice reports `episodes`, `false_accusation_episodes`, `fp`, `false_accusation_rate` (clean episodes with `FP > 0` divided by clean episodes), `mean_f1` and `mean_reward`.
 
-**Shortcut risk (explicit):** In this open development collection every v2 episode is clean, and the accounting model version is visible in the public `policy.json`. An agent can simply learn that `accrual_company_v2` implies empty findings. This is an intentionally scoped **false-accusation diagnostic slice**, not a label-balanced hidden benchmark or a reliable estimate of generalization. A future rigorous benchmark needs v2 fault-injected paired controls before using v2 for held-out performance claims. The extended summary also includes `shortcut_warning`.
+**Shortcut risk (explicit):** Both clean and faulty episodes now use the **same** visible `accounting_model`, so the previous shortcut that v2 always means empty truth is removed. However, only two v2 cases per split and their fixed train/dev fault modes make this an **open diagnostic sample**, not a reliable estimate of generalization. The report retains a `shortcut_warning`. A separate six-pair dataset provides same-seed causal controls, not a hidden benchmark.
 
-**Interpretation:** These are *measured baseline errors on synthetic clean cases*, not a learned-agent result or a measure of real-world auditor accuracy. `mark_all` and `seeded_random` intentionally over-accuse. `reconciliation` contains model-specific code and should **not** be presented as generalizable AI performance. A zero false-allegation rate on four open clean v2 episodes does not establish robustness on novel faults or withheld companies.
+**Interpretation:** These are *measured baseline errors on synthetic clean cases*, not a learned-agent result or a measure of real-world auditor accuracy. `mark_all` and `seeded_random` intentionally over-accuse. `reconciliation` contains model-specific code and should **not** be presented as generalizable AI performance. A zero false-allegation rate on two open clean v2 episodes does not establish robustness on novel faults or withheld companies.
 
 `trajectories.jsonl` contains only non-oracle public interactions; private truth, provenance, private seeds and issue IDs never appear in those action logs. The trusted evaluator reads private truth only to compute aggregate scores.
 
@@ -75,8 +75,8 @@ The private/public directory split is **not itself a security boundary**; do not
 
 ## Remaining work / non-goals
 
-- This extension does **not** make v2 generate faults or compound scenarios. All positive truth currently comes from v1.
+- V2 now supports controlled duplicate-invoice and split-allocation faults plus their coupled compound **in a separate fault route**; v2 FX and cutoff faults remain unimplemented. The original v1 continues to provide all four official fault families and two compounds.
 - It does not assess actual RL training, deployed LLM performance or real financial audits.
 - No cross-currency invoice allocations, refund/credit-note netting, partial interleaved settlements or auditor-grounded accounting compliance are claimed.
 - The real organizer D01–D20 financial checks and hidden policy episodes have not been seen.
-- Before release: owner must approve integration of the stacked draft PRs #20 → #23 → #24 → #25 → LG-024, review policy v2, run official compliance checks and authorize the final merge. Do not treat a green CI as authorization.
+- Before release: owner must approve integration of the stacked draft PRs #20 → #23 → #24 → #25 → #26 → #27, review policy v2, run official compliance checks and authorize the final merge. Do not treat a green CI as authorization.

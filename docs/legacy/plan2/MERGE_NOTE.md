@@ -1,0 +1,3 @@
+# PR21–22 / plan2 legacy merge
+
+The original plan2 event recorder and evidence matching implementation was superseded by the later P0/P1 LedgerGym code on the main release chain. During the PR #21/22 merge, 13 files changed on both lines of development. To avoid overwriting the newer P0-tested official matcher, container, scoring and seven-field recorder, this merge keeps the latest current base tree and preserves every file unique to the old plan2 chain under docs/legacy/plan2/. The complete prior PR commits remain in merge ancestry. No obsolete test is added to active tests/. This does not claim the old plan2 implementation was revalidated, nor that the new combined commit passed P0. Re-run tests before release.

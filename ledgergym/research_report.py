@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from .baselines import run_baseline
+from .faa_operation_cases import verified_payment_operations
 from .episode_io import load_public_episode
 from .research_diagnostics import (
     EQT, FP_TYPES, STANDARD_VALID, SUSPICIOUS_BUT_VALID,
@@ -144,10 +145,13 @@ def analyse_development_dataset(dataset, output, *, trials=8):
                 validate_settlement_episode(public, truth)
             else:
                 raise ValueError("unsupported accounting model")
-            annotations = _clean_opportunity(public, truth)
+            annotations = verified_payment_operations(public, truth)
+            # Keep the existing company-level diagnostic count separate from
+            # the new operation-level FAA opportunity denominators.
+            company_clean = _clean_opportunity(public, truth)
             if truth["issues"]:
                 clean["faulty"] += 1
-            elif annotations and next(iter(annotations.values()))["kind"] == SUSPICIOUS_BUT_VALID:
+            elif company_clean and next(iter(company_clean.values()))["kind"] == SUSPICIOUS_BUT_VALID:
                 clean["hard_negative"] += 1
             else:
                 clean["standard"] += 1
@@ -193,6 +197,7 @@ def analyse_development_dataset(dataset, output, *, trials=8):
         "dataset_index_sha256": hashlib.sha256(index_bytes).hexdigest(),
         "episodes": len(identities),
         "clean_case_counts": clean,
+        "faa_opportunity_unit": "validated_unimplicated_payment_operation",
         "policies": {},
         "private_truth_exported": False,
         "official_score_modified": False,
@@ -200,7 +205,8 @@ def analyse_development_dataset(dataset, output, *, trials=8):
         "limitations": [
             "Only synthetic development episodes; no independent holdout.",
             "Reconciliation shares the public model checks with the generator.",
-            "Clean-case FPR counts one opportunity per entirely clean company.",
+            "FAA FPR denominator counts individually verified eligible payment operations, including in faulty companies; not invoices, all ledger rows, or independent samples.",
+            "Claims with issue-implicated IDs or multiple eligible operations remain unattributed.",
             "EQT derives only explicitly verifiable v1 payment FX-date and payment-to-ledger contradictions; other cases remain unannotated.",
             "Invariance probes cover the scorer, not a learned policy.",
         ],

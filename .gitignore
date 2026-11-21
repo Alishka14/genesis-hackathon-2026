@@ -221,3 +221,18 @@ __marimo__/
 # Local agent planning/review scratch (never submission source).
 .superpowers/
 .role3-deps/
+
+# LedgerGym: never stage evaluator-only answers/provenance from generated episodes.
+# These patterns also apply when datasets are created in nested local folders.
+**/private/truth.json
+**/private/provenance.json
+**/private_pair_index.json
+
+# Local generated fixture directories and non-authoritative diagnostic reports.
+/ledgergym-dev-set/
+/ledgergym-mixed-local/
+/lg-v2-*/
+/ledgergym-integration-report.json
+/integration-focused.json
+/integration-full.json
+**/evaluation/trajectories.jsonl

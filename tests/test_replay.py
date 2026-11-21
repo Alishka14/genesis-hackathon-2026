@@ -27,6 +27,10 @@ def test_baseline_records_portable_cursor_references_and_replays_same_score():
     first = replay_actions(env, actions)
     second = replay_actions(env, actions)
     assert actions == snapshot
+    assert first["executed_actions"] != actions
+    assert isinstance(first["executed_actions"][3]["cursor"], str)
+    assert first["executed_actions"][3]["cursor"] == first["steps"][2][0]["next_cursor"]
+    assert isinstance(second["executed_actions"][3]["cursor"], str)
     for result in (first, second):
         rows = [row['row_id'] for action, step in zip(actions, result['steps']) if action.get('table') == 'ledger' for row in step[0]['records']]
         assert rows == [f'row-{i}' for i in range(103)]

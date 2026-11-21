@@ -77,6 +77,10 @@ def build_settlement_company(seed: int, config: dict):
         {"invoice_id": primary["invoice_id"], "amount_minor": first_share},
         {"invoice_id": secondary["invoice_id"], "amount_minor": split_amount - first_share},
     ]
+    # The vendor's documented remittance schedule is the independent basis
+    # for checking whether invoice_refs were actually applied correctly.
+    # It is present in BOTH clean and faulty v2 episodes and is public evidence.
+    split["allocation_basis"] = copy.deepcopy(split["invoice_refs"])
     split["remittance_invoice_id"] = None
     for row in payment_rows[split["payment_id"]]:
         # A vendor-level AP control debit covers multiple invoice references.

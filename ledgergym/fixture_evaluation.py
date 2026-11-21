@@ -59,8 +59,8 @@ def evaluate_fixture_dataset(dataset, output):
                     from .company_checks import validate_company
                     validate_company(public, truth)
                 elif extended and model == 'accrual_company_v2':
-                    from .company_checks_v2 import validate_settlement_company
-                    validate_settlement_company(public, truth)
+                    from .settlement_faults_v2 import validate_settlement_episode
+                    validate_settlement_episode(public, truth)
                 else:
                     raise ValueError('unsupported accounting model in development set')
             if extended:
@@ -117,9 +117,10 @@ def evaluate_fixture_dataset(dataset, output):
         summary['model_counts'] = model_counts
         summary['clean_false_accusations'] = clean_slices
         summary['shortcut_warning'] = (
-            'The public accrual_company_v2 model is clean-only in this open dataset; '
-            'model identity predicts empty truth. False-accusation diagnostics only; '
-            'not a balanced hidden evaluation or proof of generalization.')
+            'The public accrual_company_v2 model has both clean and faulted episodes, '
+            'so model identity alone no longer predicts empty truth. Only two v2 '
+            'cases per split: results are internal diagnostics, not statistical '
+            'generalization or hidden evaluation.')
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
     return summary

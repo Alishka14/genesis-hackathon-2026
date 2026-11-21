@@ -1,0 +1,67 @@
+name: Role 3 runtime verification
+on:
+  push:
+    branches: [agent/environment/lg-role3]
+  pull_request:
+    paths:
+      - 'judge_adapter.py'
+      - 'ledgergym/**'
+      - 'tests/**'
+      - '.github/workflows/role3.yml'
+      - 'requirements-role3-test.txt'
+permissions:
+  contents: read
+jobs:
+  contract-and-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Prepare test dependencies and pinned policy image
+        run: |
+          python -VV
+          python -m pip install -r requirements-role3-test.txt
+          docker pull python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5
+      - name: Verify native and canonical contracts including actual Docker boundary
+        run: python -m pytest -q -rs -p no:cacheprovider --junitxml=role3-ci.xml
+      - name: Require original and canonical container checks to execute
+        run: |
+          python - <<'PY'
+          from xml.etree import ElementTree as ET
+          cases = [c for c in ET.parse('role3-ci.xml').iter('testcase') if 'test_isolated_runner' in c.attrib.get('classname', '')]
+          assert len(cases) >= 6, 'Expected at least the six original container regressions'
+          assert all(c.find('skipped') is None for c in cases), 'Container checks were skipped'
+          canonical = [c for c in ET.parse('role3-ci.xml').iter('testcase') if 'test_role3_runtime' in c.attrib.get('classname', '') and c.attrib.get('name', '').startswith('test_container')]
+          assert len(canonical) == 7, 'Expected all seven canonical container regressions'
+          assert all(c.find('skipped') is None for c in canonical), 'Canonical container checks were skipped'
+          PY
+      - name: Verify the restricted demo on an independently written episode
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'tests')
+          from role3_fixture import write_case
+          write_case(Path('role3-demo-episode'))
+          PY
+          python -m ledgergym.role3_demo restricted --episode role3-demo-episode --trajectory role3-demo.jsonl
+      - name: Record canonical and paired transport checks
+        run: |
+          python -m ledgergym.role3_mirror --output role3-mirror.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('role3-mirror.json').read_text())
+          for block in ('contract', 'paired_transport_only'):
+              assert len(report[block]) == 20
+              assert set(report[block].values()) == {'VERIFIED_PASS'}, report[block]
+          PY

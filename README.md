@@ -2,6 +2,34 @@
 
 LedgerGym генерирует согласованные синтетические истории, предоставляет ограниченные инструменты расследования и оценивает находки по доказательствам. Модель `company` поддерживает 200–2000 проводок, 20–200 документов и 0–12 ошибок четырёх типов, включая два связанных сценария. Конкурсный P0 ещё не завершён: требуется проверка целевого окружения, изоляции и соответствия первичным правилам.
 
+## Текущая сборка и локальная веб-панель (PR LG-029; требует проверки)
+
+Это **дополнительная ветка разработки**, пока не объединённая в `main`. Финансовое ядро, scorer и официальный reward не менялись ради интерфейса. В панели доступна только локальная открытая выборка; она предназначена для просмотра синтетических данных и агрегированных baseline-результатов, а **не** для выдачи скрытой оценки или обучения модели.
+
+**Быстрый запуск веб-интерфейса (Python 3.11+, без npm, без внешних API):**
+
+```sh
+python3.11 -m ledgergym.dashboard --demo
+# Открыть в браузере http://127.0.0.1:8765
+# Остановить в Terminal через Ctrl+C.
+```
+
+Если у тебя уже создан 10+10 dataset с `--evaluate`, можно открыть его без повторной генерации:
+
+```sh
+python3.11 -m ledgergym.dashboard --dataset /ПУТЬ/К/ДАТАСЕТУ
+```
+
+Dashboard предоставляет обзор эпизодов, F1/reward сравнение четырёх политик, train/dev селектор и постраничный просмотр **только публичных** `invoices`, `payments`, `ledger`, `fx`. Сервер слушает **127.0.0.1**, API чтения ограничен фиксированными маршрутами. Frontend использует HTML/CSS/JS без сторонних библиотек; backend — стандартная библиотека Python. Это не общедоступный сайт и не production-сервер.
+
+**Новый полный event recorder:** после `python3.11 -m ledgergym.company_dataset NEW_DIR --settlement-hard-negatives --evaluate` появляется `NEW_DIR/evaluation/trajectories_full.jsonl` с `episode_id`, `step`, `action`, `observation`, `reward`, `terminated`, `truncated`. Это **доверенный development-артефакт**, содержащий reward; его нельзя выдавать недоверенному агенту в closed mode. Старый переносимый `trajectories.jsonl` с actions сохранён без изменения контракта.
+
+**Измерение локальных ресурсов:** `scripts/profile_local_resources.py` записывает wall time, CPU и наблюдаемый пик RSS для отдельной команды на macOS/Linux. Это измерение, **не** принудительное ограничение ресурсов и не подтверждение лимитов платформы жюри.
+
+Предыдущие локальные результаты **на родительской ветке**: Python 3.14 full integration PASS; Docker 22/22; Python 3.11.18 offline installed-wheel gate 9/9 с 45/45 тестами и SHA-256 145 файлов. Новые recorder/dashboard/profile изменения **ещё требуют отдельного прогона**. Подробности: [P0 и dashboard handoff](docs/verification/P0_DASHBOARD_2026-11-21.md).
+
+**Ниже содержатся разделы предыдущих этапов.** Они описывают состояние кода на момент создания и могут указывать, что split/refund или другие сценарии «ещё не реализованы». Для актуальных v2 сценариев см. [V2_CAUSAL_PAIRS](docs/verification/V2_CAUSAL_PAIRS.md), [OFFLINE_RELEASE_GATE](docs/verification/OFFLINE_RELEASE_GATE.md) и [финальный handoff](docs/verification/FINAL_SUBMISSION_HANDOFF_2026-11-21.md).
+
 ## Role 3 canonical judge runtime (21 November 2026)
 
 The organizer entry points are now `judge_adapter.generate_episode(seed, config, output_dir)`, `judge_adapter.make_env()` and `judge_adapter.score_episode(episode_dir, findings, inspection_steps)`. The judge environment accepts `{name,args}`, supports closed/train modes and externally supplied episodes without regenerating them, and provides deterministic canonical pagination and per-step trajectories. Financial generation and scoring remain delegated to the existing owners.

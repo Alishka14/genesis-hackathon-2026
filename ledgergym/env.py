@@ -4,8 +4,28 @@ import copy
 from decimal import Decimal, DecimalException, localcontext
 import operator
 import re
+import secrets
 import time
 from .score import validate_submission
+
+
+# Availability in an input mapping does not grant access to an agent.
+_RECORD_KEYS = {
+    "ledger": "row_id", "invoices": "invoice_id",
+    "payments": "payment_id", "fx": "rate_id",
+}
+_READ_FIELDS = {
+    "list_records": ({"action", "table"}, {"cursor", "limit"}),
+    "get_record": ({"action", "table", "id"}, set()),
+    "get_document": ({"action", "doc_id"}, set()),
+    "calculator": ({"action", "expression"}, set()),
+}
+
+
+def _record_identifier(table, row):
+    if table == "fx" and not row.get("rate_id"):
+        return ":".join(row[key] for key in ("date", "source_currency", "target_currency"))
+    return row.get(_RECORD_KEYS[table])
 
 
 def calculate(expression):
@@ -39,18 +59,44 @@ def calculate(expression):
 
 
 class LedgerSandbox:
-    def __init__(self, public, evaluator, closed=False, timeout=60):
-        self.public = copy.deepcopy(public)
-        self.evaluator = evaluator
+    def __init__(self, public=None, evaluator=None, closed=False, timeout=60, *, episode_factory=None, cursor_factory=None):
+        if (public is None) != (evaluator is None):
+            raise ValueError("public and evaluator must be supplied together")
+        if public is not None and episode_factory is not None:
+            raise ValueError("choose a fixed episode or an episode factory")
+        if public is None and episode_factory is None:
+            from .runtime import create_episode
+            episode_factory = create_episode
+        self._episode_factory = episode_factory
+        self._cursor_factory = cursor_factory
+        self._fixed_public = copy.deepcopy(public)
+        self._fixed_evaluator = evaluator
+        self.public = None
+        self.evaluator = None
         self.closed = closed
         self.timeout = timeout
         self.done = True
 
     def reset(self, seed=None, config=None):
+        # A failed reset must not leave the preceding episode usable.
+        self.done = True
+        self.public = None
+        self.evaluator = None
+        self._cursors = {}
+        self._page_cursors = {}
+        if self._episode_factory is None:
+            if seed is not None or config is not None:
+                raise ValueError("fixed episodes do not accept seed or config")
+            public, evaluator = self._fixed_public, self._fixed_evaluator
+        else:
+            public, evaluator = self._episode_factory(seed, copy.deepcopy(config))
+        public = copy.deepcopy(public)
+        initial = {"manifest": copy.deepcopy(public["manifest"]), "policy": copy.deepcopy(public["policy"]), "remaining_steps": 100}
+        self.public, self.evaluator = public, evaluator
         self.steps = 0
         self.started = time.monotonic()
         self.done = False
-        return {"manifest": copy.deepcopy(self.public["manifest"]), "policy": copy.deepcopy(self.public["policy"]), "remaining_steps": 100}, {}
+        return initial, {}
 
     def step(self, action):
         if self.done:
@@ -75,31 +121,43 @@ class LedgerSandbox:
         return copy.deepcopy(obs), 0.0, False, False, {}
 
     def _read(self, action, kind):
+        if not isinstance(kind, str) or kind not in _READ_FIELDS:
+            raise ValueError()
+        required, optional = _READ_FIELDS[kind]
+        if not required <= set(action) <= required | optional:
+            raise ValueError()
         tables = self.public["tables"]
         if kind == "list_records":
             table, cursor, limit = action.get("table"), action.get("cursor"), action.get("limit", 50)
-            if not isinstance(table, str) or table not in tables or type(limit) is not int or not 1 <= limit <= 50:
+            if not isinstance(table, str) or table not in _RECORD_KEYS or type(limit) is not int or not 1 <= limit <= 50:
                 raise ValueError()
             offset = 0
             if cursor is not None:
-                prefix = self.public["manifest"]["episode_id"] + ":" + table + ":"
-                if not isinstance(cursor, str) or not cursor.startswith(prefix) or not cursor[len(prefix):].isascii() or not cursor[len(prefix):].isdigit():
+                if not isinstance(cursor, str) or cursor not in self._cursors:
                     raise ValueError()
-                offset = int(cursor[len(prefix):])
+                cursor_table, offset = self._cursors[cursor]
+                if cursor_table != table:
+                    raise ValueError()
             if offset > len(tables[table]):
                 raise ValueError()
             rows = tables[table][offset:offset + limit]
             next_offset = offset + len(rows)
-            next_cursor = f'{self.public["manifest"]["episode_id"]}:{table}:{next_offset}' if next_offset < len(tables[table]) else None
+            next_cursor = None
+            if next_offset < len(tables[table]):
+                page = (table, next_offset)
+                if page not in self._page_cursors:
+                    token = self._cursor_factory(*page) if self._cursor_factory else secrets.token_urlsafe(24)
+                    self._page_cursors[page] = token
+                    self._cursors[token] = page
+                next_cursor = self._page_cursors[page]
             return {"records": rows, "next_cursor": next_cursor}
         if kind == "get_record":
             table, record_id = action.get("table"), action.get("id")
-            if not isinstance(table, str) or table not in tables or not isinstance(record_id, str):
+            if not isinstance(table, str) or table not in _RECORD_KEYS or not isinstance(record_id, str):
                 raise ValueError()
-            key = {"ledger": "row_id", "invoices": "invoice_id", "payments": "payment_id"}.get(table)
-            for row in tables[table]:
-                if key and row.get(key) == record_id:
-                    return {"record": row}
+            matched = [row for row in tables[table] if _record_identifier(table, row) == record_id]
+            if len(matched) == 1:
+                return {"record": matched[0]}
             raise ValueError()
         if kind == "get_document":
             doc_id = action.get("doc_id")
@@ -114,9 +172,11 @@ class LedgerSandbox:
             return {"value": calculate(action.get("expression"))}
         raise ValueError()
 
-    def _finish(self, findings, truncated=False):
+    def _finish(self, findings, truncated=False, *, inspection_steps=None):
         self.done = True
-        score = self.evaluator(findings, self.steps if truncated else self.steps - 1)
+        if inspection_steps is None:
+            inspection_steps = self.steps if truncated else self.steps - 1
+        score = self.evaluator(findings, inspection_steps)
         if self.closed:
             return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, 0.0, not truncated, truncated, {}
         return {"status": "finished", "remaining_steps": max(0, 100 - self.steps)}, score["reward"], not truncated, truncated, {"score": score}

@@ -203,6 +203,8 @@ def dashboard_server(dataset: Path, *, port: int = 8765,
         if report_path.stat().st_size > 2 * 1024 * 1024:
             raise ValueError("research aggregate too large")
         candidate = json.loads(report_path.read_text(encoding="utf-8"))
+        if not isinstance(candidate, dict):
+            raise ValueError("research aggregate must be an object")
         digest = hashlib.sha256((root / "index.json").read_bytes()).hexdigest()
         if (candidate.get("kind") != "ledgergym_evaluator_only_research_diagnostics_v1"
                 or candidate.get("dataset_kind") != summary["kind"]

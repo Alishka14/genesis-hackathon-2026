@@ -36,6 +36,9 @@ def evaluate_fixture_dataset(dataset, output):
     v2_labels = {'train': {'clean': 0, 'faulty': 0},
                  'dev': {'clean': 0, 'faulty': 0}}
     trajectories = []
+    # Full, *trusted development-only* transition log. The canonical closed
+    # agent protocol never exposes final reward or evaluator feedback.
+    full_events = []
     seen_ids = set()
     for split in ('train', 'dev'):
         entries = index[split]
@@ -91,10 +94,28 @@ def evaluate_fixture_dataset(dataset, output):
                         measures['f1_sum'] += score['f1']
                         measures['reward_sum'] += score['reward']
                 if result['trajectory'] is not None:
-                    env = LedgerSandbox(public, lambda answers, steps: evaluate(truth['issues'], answers, public_ids, steps))
-                    replayed = replay_actions(env, result['trajectory'])['steps'][-1]
+                    env = LedgerSandbox(
+                        public, lambda answers, steps: evaluate(
+                            truth['issues'], answers, public_ids, steps),
+                        # Reproducible development cursor tokens only. The
+                        # production judge retains its opaque cursor policy.
+                        cursor_factory=lambda table, offset: f'dev-cursor:{table}:{offset}',
+                    )
+                    replay = replay_actions(env, result['trajectory'])
+                    replayed = replay['steps'][-1]
                     if not replayed[2] or replayed[3] or replayed[4].get('score') != score:
                         raise ValueError('trajectory replay did not reproduce the score')
+                    if len(replay['steps']) != len(result['trajectory']):
+                        raise ValueError('missing replay transition')
+                    for step_no, (action, transition) in enumerate(
+                            zip(result['trajectory'], replay['steps']), start=1):
+                        observation, reward, terminated, truncated, _ = transition
+                        full_events.append({
+                            'episode_id': entry['episode_id'], 'split': split,
+                            'policy': name, 'step': step_no, 'action': action,
+                            'observation': observation, 'reward': reward,
+                            'terminated': terminated, 'truncated': truncated,
+                        })
                     trajectories.append({'episode_id': entry['episode_id'], 'split': split, 'policy': name,
                                          'trajectory_format': 'ledgergym-actions-v1', 'actions': result['trajectory']})
     for group in (totals, *splits.values()):
@@ -130,6 +151,11 @@ def evaluate_fixture_dataset(dataset, output):
             'generalization or hidden evaluation.')
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, separators=(',', ':')) + '\n', encoding='utf-8')
     (output / 'trajectories.jsonl').write_text(''.join(json.dumps(record, sort_keys=True, separators=(',', ':')) + '\n' for record in trajectories), encoding='utf-8')
+    # A separate, never-agent-mounted artifact: public observations with the
+    # development reward, but no truth/provenance/evaluator-only info fields.
+    (output / 'trajectories_full.jsonl').write_text(
+        ''.join(json.dumps(event, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
     return summary
 
 

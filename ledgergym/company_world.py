@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
 import random
 from .company_checks import validate_company
+from .payment_matching import validate_clean_company_allocations
 
 
 VERSION = 'company-0.1'
@@ -169,6 +170,7 @@ def build_company(seed, config):
                          'allocation_rule': 'allocate_full_payment_to_remittance_invoice', 'allocation_claim_currency': 'KZT'},
               'tables': tables}
     validate_company(public, {'issues': []})
+    validate_clean_company_allocations(public)
     truth = {'issues': []}
     provenance = {'seed': seed, 'generator_version': VERSION, 'config': copy.deepcopy(config),
                   'clean_preflight': 'passed', 'interventions': [], 'compound_groups': []}

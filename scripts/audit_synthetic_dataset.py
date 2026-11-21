@@ -12,6 +12,13 @@ from collections import Counter
 import json
 from pathlib import Path
 import re
+import sys
+
+# Direct script execution must import this checkout, even without an editable
+# install or after an unrelated package has been installed globally.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from ledgergym.episode_io import load_public_episode
 from ledgergym.independent_finance_audit import audit_company

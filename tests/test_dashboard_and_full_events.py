@@ -41,6 +41,32 @@ def test_full_events_have_public_observations_rewards_and_exact_stable_order(tmp
         '"provenance"', '"private_pair_index"', '"interventions"', '"seed"',
     ):
         assert forbidden not in first.decode("utf-8")
+    submission = root / "evaluation" / "submission"
+    public_lines = [
+        json.loads(line)
+        for line in (submission / "trajectories.jsonl").read_text().splitlines()
+    ]
+    public_fields = {
+        "episode_id", "step", "action", "observation", "reward",
+        "terminated", "truncated",
+    }
+    assert len(public_lines) == len(events)
+    assert all(set(row) == public_fields for row in public_lines)
+    assert public_lines == [
+        {key: value for key, value in event.items() if key in public_fields}
+        for event in events
+    ]
+    index = json.loads((submission / "trace_index.json").read_text())
+    assert index["closed_mode"] is False
+    assert index["private_truth_exported"] is False
+    assert len(index["trajectories"]) == 60
+    assert sum(row["steps"] for row in index["trajectories"]) == len(public_lines)
+    assert index["trajectories"][0]["first_line"] == 1
+    assert all(forbidden not in (submission / "trajectories.jsonl").read_text()
+               for forbidden in (
+                   '"issue_id"', '"allowed_evidence_sets"',
+                   '"expected_amount_minor"', '"provenance"',
+               ))
     assert summary["replay"] == {"trajectories": 60, "score_matches": 60}
     # Evaluating a second time must be byte-stable despite pagination cursors.
     output = tmp_path / "again"

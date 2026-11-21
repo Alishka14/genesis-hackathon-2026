@@ -23,6 +23,9 @@ INSTALLED_TESTS = (
     "tests/test_company_settlements_v2.py",
     "tests/test_v2_independent_truth.py",
     "tests/test_v2_pair_dataset.py",
+    # Exercise the dashboard and complete transition recorder *from the
+    # installed wheel*, not a repo-imported ledgergym package.
+    "tests/test_dashboard_and_full_events.py",
 )
 
 
@@ -138,6 +141,14 @@ def verify_offline_release(wheelhouse, bundle, report_path, *, timeout=600):
                 "--only-binary=:all:", "--require-hashes", "--no-deps",
                 "--find-links", bundle / "wheels",
                 "-r", bundle / "requirements-runtime.lock",
+            ], cwd=temp, stages=stages, timeout=timeout)
+            _execute("installed_dashboard_assets", [
+                installed_py, "-I", "-c",
+                "from importlib.resources import files; "
+                "from ledgergym.dashboard import dashboard_server; "
+                "base=files('ledgergym').joinpath('dashboard_static'); "
+                "assert all(base.joinpath(name).read_bytes() for name in "
+                "('index.html','app.css','app.js'))",
             ], cwd=temp, stages=stages, timeout=timeout)
             _execute("installed_dev_dependencies", [
                 installed_py, "-m", "pip", "install", "--no-index",

@@ -12,6 +12,9 @@ def generate_episode(seed, config):
     scenario = config.get('scenario')
     if not isinstance(scenario, str):
         raise ValueError('invalid scenario')
+    if scenario == 'company_settlements':
+        from .company_world_v2 import build_settlement_company
+        return build_settlement_company(seed, {key: value for key, value in config.items() if key != 'scenario'})[:2]
     if scenario == 'company':
         from .company_world import build_company
         return build_company(seed, {key: value for key, value in config.items() if key != 'scenario'})[:2]

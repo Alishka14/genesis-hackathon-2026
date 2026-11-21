@@ -6,6 +6,7 @@ Requires a generated-and-evaluated company dataset. No source files are changed.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -59,7 +60,8 @@ def _read_lines(path: Path):
 
 def _validate_index(dataset: Path):
     index = _load_json(dataset / 'index.json')
-    if not isinstance(index, dict) or index.get('kind') not in KINDS:
+    if (not isinstance(index, dict) or set(index) != {'kind', 'train', 'dev'}
+            or index.get('kind') not in KINDS):
         raise ValueError('expected evaluated 10+10 company dataset')
     known = set()
     for split in ('train', 'dev'):
@@ -88,6 +90,11 @@ def _validate_index(dataset: Path):
                 raise ValueError('episode ID mismatch')
             _check_private_keys(manifest)
             _check_private_keys(_load_json(public_dir / 'policy.json'))
+            for name in ('ledger.csv', 'fx.csv'):
+                with (public_dir / name).open(encoding='utf-8', newline='') as stream:
+                    headers = csv.DictReader(stream).fieldnames
+                if not headers or PRIVATE_KEYS.intersection(headers):
+                    raise ValueError('private evaluator column in public CSV')
             for name in ('invoices.jsonl', 'payments.jsonl'):
                 for record in _read_lines(public_dir / name):
                     _check_private_keys(record)
@@ -105,6 +112,9 @@ def _validate_traces(dataset: Path, index: dict):
             or trace_index.get('closed_mode') is not False
             or trace_index.get('private_truth_exported') is not False):
         raise ValueError('unexpected submission trace trust mode')
+    if set(trace_index) != {'format', 'closed_mode', 'private_truth_exported', 'trajectories'}:
+        raise ValueError('unexpected submission trace index fields')
+    _check_private_keys(trace_index)
     spans = trace_index.get('trajectories')
     events = _read_lines(submission / 'trajectories.jsonl')
     if not isinstance(spans, list) or len(spans) != 60 or not events:
@@ -114,7 +124,7 @@ def _validate_traces(dataset: Path, index: dict):
     seen = set()
     cursor = 0
     for span in spans:
-        if not isinstance(span, dict):
+        if not isinstance(span, dict) or set(span) != {'episode_id', 'split', 'policy', 'first_line', 'steps'}:
             raise ValueError('invalid trace index')
         episode_id, split, policy = (span.get('episode_id'),
                                      span.get('split'), span.get('policy'))

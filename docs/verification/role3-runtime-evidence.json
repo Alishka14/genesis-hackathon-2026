@@ -1,0 +1,66 @@
+{
+  "runtime_commit": "a1cce5e4a22d6b787ae1610cf96147bf6e68c3de",
+  "team_integration_commit": "82719e8fd1731a86fbbd6467db383027d2dd2d0f",
+  "workflow": "https://github.com/Alishka14/genesis-hackathon-2026/actions/runs/44881315145",
+  "full_suite": [
+    {
+      "platform": "Windows",
+      "python": "3.11.9",
+      "pytest": "8.4.2",
+      "pass": 197,
+      "fail": 0,
+      "skip": 13,
+      "not_run": 13
+    },
+    {
+      "platform": "Windows",
+      "python": "3.12.14",
+      "pytest": "8.4.2",
+      "pass": 197,
+      "fail": 0,
+      "skip": 13,
+      "not_run": 13
+    },
+    {
+      "platform": "Ubuntu",
+      "python": "3.11.18",
+      "pytest": "8.4.2",
+      "pass": 210,
+      "fail": 0,
+      "skip": 0,
+      "not_run": 0,
+      "docker_cases": 13,
+      "job": 136777016264
+    },
+    {
+      "platform": "Ubuntu",
+      "python": "3.12.16",
+      "pytest": "8.4.2",
+      "pass": 210,
+      "fail": 0,
+      "skip": 0,
+      "not_run": 0,
+      "docker_cases": 13,
+      "job": 136777016463
+    },
+    {
+      "platform": "Windows",
+      "python": "3.12.14",
+      "pytest": "8.4.2",
+      "checkout": "combined with temporary compatibility changes",
+      "pass": 292,
+      "fail": 0,
+      "skip": 14,
+      "not_run": 14
+    }
+  ],
+  "combined_bundle": {
+    "python": "3.11.9",
+    "manifest_files_verified": 111,
+    "installed_demo": {
+      "status": "VERIFIED_PASS",
+      "replay": "exact",
+      "return": 0.994
+    }
+  }
+}

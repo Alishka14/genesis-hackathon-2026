@@ -26,7 +26,8 @@ def _aggregate(statuses):
 
 def run():
     root = Path(__file__).resolve().parents[1]
-    files = ["tests/test_role3_contract.py", "tests/test_role3_pairs.py", "tests/test_role3_runtime.py"]
+    files = ["tests/test_role3_contract.py", "tests/test_role3_pairs.py", "tests/test_role3_runtime.py",
+             "tests/test_role3_review.py"]
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / "results.xml"
         proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
@@ -44,7 +45,9 @@ def run():
         checks[f"C{n:02d}"] = status(grouped)
     for n in (16, 17):
         checks[f"C{n}"] = status(f"test_budget_boundaries[C{n}]")
-    checks["C18"] = status("test_C18_reset_clock_includes_file_loading", "test_real_pipe_faults[import time; time.sleep(5)-timeout]")
+    checks["C18"] = status("test_C18_reset_clock_includes_file_loading",
+                           "test_reset_interrupts_blocked_public_load",
+                           "test_real_pipe_faults[import time; time.sleep(5)-timeout]")
     checks["C19"] = status("test_C19_evaluator_score_and_malformed_submit[closed]",
                            "test_C19_evaluator_score_and_malformed_submit[train]")
     boundary = [f"test_container_boundary_and_cleanup[{kind}]" for kind in

@@ -4,7 +4,7 @@
 
 The organizer entry points are now `judge_adapter.generate_episode(seed, config, output_dir)`, `judge_adapter.make_env()` and `judge_adapter.score_episode(episode_dir, findings, inspection_steps)`. The judge environment accepts `{name,args}`, supports closed/train modes and externally supplied episodes without regenerating them, and provides deterministic canonical pagination and per-step trajectories. Financial generation and scoring remain delegated to the existing owners.
 
-For verification, install test-only dependencies with `python -m pip install -r requirements-role3-test.txt`, then run `python -m pytest -q -rs` and `python -m ledgergym.role3_mirror`. Runtime itself has no third-party Python dependencies. These are local checks; they do not certify financial data generation or unavailable container isolation.
+For verification, install test-only dependencies with `python -m pip install -r requirements-role3-test.txt`, then run `python -m pytest -q -rs` and `python -m ledgergym.role3_mirror`. Runtime uses the Python standard library. Linux CI ran the complete suite, including the pinned Docker cases and restricted demo. See the [integration report](docs/ROLE3_INTEGRATION_READINESS.md) for the tested company and packaging changes.
 
 Run `python -m ledgergym.role3_demo local --trajectory trajectories.jsonl` for inspect/document/calculator/submit/replay. With Docker and the exact image documented below already present, run `python -m ledgergym.role3_demo restricted --episode PATH --trajectory trajectories.jsonl` for the actual file-fed closed policy path. Missing Docker/image produces NOT_RUN; there is no insecure subprocess fallback.
 

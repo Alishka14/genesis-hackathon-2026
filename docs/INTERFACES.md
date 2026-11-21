@@ -24,6 +24,8 @@ Canonical actions are `{"name":NAME,"args":ARGUMENTS}`:
 | calculator | expression | Decimal result string |
 | submit | findings: {episode_id, findings:[...]} | {accepted:true} |
 
+Record lookup uses row_id/invoice_id/payment_id and an existing rate_id for FX. If an external FX row has no rate_id, its lookup ID is `date:source_currency:target_currency`. This is an address, not an injected field: the public row stays unchanged. Ambiguous primary/natural keys return a bounded error; provide explicit unique rate_id values when rates share a natural key. The canonical evidence registry includes retrievable records/documents, not entity IDs merely mentioned in records.
+
 Step returns `({"result":value_or_null,"error":null_or_{code,message},"remaining_steps":int}, reward, terminated, truncated, {})`. Unknown actions/tables/IDs and malformed reads spend one action and produce bounded errors. Malformed submit terminates; closed reward is still zero. The findings validator and matcher remain Role 4 implementations; their documented outstanding normalization defects are not silently replaced here.
 
 One hundred actions include submit; 99 inspections plus submit are accepted, while 100 inspections truncate to empty findings. Inspection cost excludes submit. The deadline starts at reset entry and includes policy execution. Completion freezes the result until reset. Post-terminal operations cannot rescore or append findings.
@@ -32,7 +34,7 @@ One hundred actions include submit; 99 inspections plus submit are accepted, whi
 
 Canonical cursors are deterministic, table/page-bound and accepted only after issuance in the current reset. Reset clears issued authority. After an identical page is legitimately issued again, an identical historical string is necessarily indistinguishable from the newly issued string; current issuance is the authority. Native legacy clients retain their existing random tokens and portable replay. Exact canonical replay uses unchanged literal actions and full observable-value comparison, including tokens.
 
-`run_file_agent(seed, config, agent_path, timeout=60)` in `ledgergym.isolated_runner` runs a policy through the restricted Docker path. Only its script is mounted; source, episode files, truth and Docker socket are not mounted. There is no unsandboxed fallback. Network is disabled; filesystem and process resources are restricted. Returned score/trajectory are trusted caller artifacts. Missing Docker/image is an explicit runtime limitation, not evidence of isolation.
+`run_file_agent(seed, config, agent_path, timeout=60)` in `ledgergym.isolated_runner` supports supplied closed episodes, supplied train episodes, and generated train episodes. The restricted Docker process receives the copied policy script and the published JSON messages. Network access, filesystem access and process resources are restricted. Terminal score, trajectory and delivery diagnostics belong to the trusted caller. A startup failure returns `runner_error` without a score. When the trusted reset worker times out, it preserves the empty-answer score only if it has already read truth. See [security verification](ROLE3_PHASE2_SECURITY.md) for the tested boundary and limits.
 
 `FlightRecorder` and `verify_replay` in `ledgergym.flight_recorder` record/compare episode_id, step, action, observation, visible reward, terminated and truncated without adding truth to observations. A same-process judge object or recorder is not a security boundary: untrusted policies must never receive it directly.
 

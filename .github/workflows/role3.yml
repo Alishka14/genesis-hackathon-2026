@@ -38,7 +38,7 @@ jobs:
           python - <<'PY'
           from xml.etree import ElementTree as ET
           cases = [c for c in ET.parse('role3-ci.xml').iter('testcase') if 'test_isolated_runner' in c.attrib.get('classname', '')]
-          assert len(cases) == 6, 'Expected all six original container regressions'
+          assert len(cases) >= 6, 'Expected at least the six original container regressions'
           assert all(c.find('skipped') is None for c in cases), 'Container checks were skipped'
           canonical = [c for c in ET.parse('role3-ci.xml').iter('testcase') if 'test_role3_runtime' in c.attrib.get('classname', '') and c.attrib.get('name', '').startswith('test_container')]
           assert len(canonical) == 7, 'Expected all seven canonical container regressions'
@@ -54,4 +54,14 @@ jobs:
           write_case(Path('role3-demo-episode'))
           PY
           python -m ledgergym.role3_demo restricted --episode role3-demo-episode --trajectory role3-demo.jsonl
-
+      - name: Record canonical and paired transport checks
+        run: |
+          python -m ledgergym.role3_mirror --output role3-mirror.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('role3-mirror.json').read_text())
+          for block in ('contract', 'paired_transport_only'):
+              assert len(report[block]) == 20
+              assert set(report[block].values()) == {'VERIFIED_PASS'}, report[block]
+          PY

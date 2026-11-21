@@ -1,6 +1,6 @@
 # LG-023 — Versioned LedgerWorld settlement episodes (split payments + supplier refunds)
 
-**Status:** review candidate. **Scope:** full six-file, **clean-only** company episodes under a new versioned financial policy. No changes to v1 fault generation, closed truth scoring or official reward. A passing internal suite is not an organizer D01–D20 certification.
+**Status:** review candidate. **Scope:** the original `company_settlements` route remains **clean-only**; the opt-in `company_settlement_fault` route now supports controlled v2 duplicate/allocation/compound counterpairs with exactly the same public policy/schema. See [V2_CAUSAL_PAIRS.md](V2_CAUSAL_PAIRS.md). No changes to v1 fault generation, closed truth scoring or official reward. A passing internal suite is not an organizer D01–D20 certification.
 
 ## Why v2 is necessary
 The existing `accrual_company_v1` requires each ordinary payment to be linked in full to one `remittance_invoice_id`, with two ledger postings associated with that invoice. That constraint cannot represent a legitimate split payment or vendor refund without inventing a `payment_allocation` fault or changing historical accounting semantics. `accrual_company_v2` is explicitly versioned and **opt-in** via the new scenario `company_settlements`.
@@ -14,7 +14,7 @@ The existing `accrual_company_v1` requires each ordinary payment to be linked in
         "documents": 80
     })
 
-`public["manifest"]["schema_version"] = "0.4-company-settlements"` and `public["policy"]["accounting_model"] = "accrual_company_v2"`. The six files remain unchanged: `manifest.json`, `policy.json`, `ledger.csv`, `invoices.jsonl`, `payments.jsonl`, `fx.csv`. Public payments gain `kind` ("payment" or "refund"), `entity_id` and, for refunds only, `original_payment_id`. `remittance_invoice_id` is explicitly null when one transfer allocates across multiple invoices or when it is a refund. All original document and ledger IDs are preserved.
+`public["manifest"]["schema_version"] = "0.4-company-settlements"` and `public["policy"]["accounting_model"] = "accrual_company_v2"`. The six files remain unchanged: `manifest.json`, `policy.json`, `ledger.csv`, `invoices.jsonl`, `payments.jsonl`, `fx.csv`. Public payments gain `kind` ("payment" or "refund"), `entity_id` and, for refunds only, `original_payment_id`. A legitimate split payment also publishes its `allocation_basis` (vendor remittance schedule), separate from actually applied `invoice_refs`, in both clean and faulty episodes. `remittance_invoice_id` is explicitly null when one transfer allocates across multiple invoices or when it is a refund. All original document and ledger IDs are preserved.
 
 **New public policy rules:**
 - `allocation_rule = explicit_same_currency_invoice_refs`: each positive payment is completely allocated through documentary `invoice_refs`; invoice amount remains in its native currency.
@@ -47,10 +47,10 @@ Or use `judge_adapter.generate_episode(81, {"scenario":"company_settlements", "p
 
 ## What is and is not claimed
 - **Real integration:** six public files; balance-preserving ledger rows; read-only tools can retrieve refund and split documents; clean evaluator has no false issue; independent preflight rejects inconsistent financial facts.
-- **Not yet implemented:** v2 fault injection, interleaved refund/positive-payment timing, multi-currency *cross*-allocation, cancellation/credit-note accounting, netting without provenance, general bank reconciliation or ledger controls beyond the synthetic policy. A refund's original cash transaction is still identifiable from public records.
-- The legacy `company` scenario retains all four independent faults and two compound scenarios under `accrual_company_v1`. The v2 clean-only scenario is a separate hard-negative family, not a replacement.
+- **Not yet implemented:** v2 FX/cutoff fault injection, interleaved refund/positive-payment timing, multi-currency *cross*-allocation, cancellation/credit-note accounting, netting without provenance, general bank reconciliation or ledger controls beyond the synthetic policy. The sibling v2 fault route now supports duplicate, partial split allocation and their compound. A refund's original cash transaction is still identifiable from public records.
+- The legacy `company` scenario retains all four independent faults and two compound scenarios under `accrual_company_v1`. V2 clean and v2 faulty variants share the same public `accounting_model` and six-file schema; neither replaces the legacy coverage.
 - A refund-containing public company is inherently different from one where negative-value transfers are simply inserted without source evidence. Negative transfers and arbitrary bank credits remain unsupported.
 - Public/private directories alone do not establish OS isolation; the existing isolated Docker runner remains the expected way to run untrusted agents.
-- Submit/merge/publication and policy v2 production adoption require owner review; **do not** treat a green CI run as approval.
+- Submit/merge/publication and policy v2 production adoption require owner review; **do not** treat a green CI run as approval. GitHub CI for the stacked v2 benchmark branches has recently failed before job steps without logs; re-run tests locally or after the runner recovers.
 
 **Review requests:** accounting treatment of return of vendor funds, documental completeness of `original_payment_id` and `invoice_refs`, versioned schema compatibility, and how to add v2 faulty counterparts without shortcut correlations.

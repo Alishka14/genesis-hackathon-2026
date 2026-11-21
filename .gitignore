@@ -236,6 +236,12 @@ __marimo__/
 /integration-focused.json
 /integration-full.json
 **/evaluation/trajectories.jsonl
+**/evaluation/trajectories_full.jsonl
+**/evaluation/submission/
+**/research_summary.json
+/integration-lg029.json
+/ledgergym-resource-*.json
+/ledgergym-profile-*/
 
 # Local packaged distribution experiments and release-stage reports.
 /ledgergym-wheelhouse*/

@@ -107,8 +107,10 @@ def evaluate_fixture_dataset(dataset, output):
                         raise ValueError('trajectory replay did not reproduce the score')
                     if len(replay['steps']) != len(result['trajectory']):
                         raise ValueError('missing replay transition')
+                    if len(replay['executed_actions']) != len(replay['steps']):
+                        raise ValueError('missing resolved replay action')
                     for step_no, (action, transition) in enumerate(
-                            zip(result['trajectory'], replay['steps']), start=1):
+                            zip(replay['executed_actions'], replay['steps']), start=1):
                         observation, reward, terminated, truncated, _ = transition
                         full_events.append({
                             'episode_id': entry['episode_id'], 'split': split,
@@ -156,6 +158,38 @@ def evaluate_fixture_dataset(dataset, output):
     (output / 'trajectories_full.jsonl').write_text(
         ''.join(json.dumps(event, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
                 for event in full_events), encoding='utf-8')
+    # Contest-facing OPEN-development trace schema, stored in its own folder
+    # to avoid silently breaking consumers of the legacy action-only
+    # output/trajectories.jsonl. Reward is observable only in the trusted
+    # open-development evaluator, never supplied as a closed-mode tool result.
+    submission = output / 'submission'
+    submission.mkdir(mode=0o700)
+    public_fields = ('episode_id', 'step', 'action', 'observation',
+                     'reward', 'terminated', 'truncated')
+    (submission / 'trajectories.jsonl').write_text(
+        ''.join(json.dumps({key: event[key] for key in public_fields},
+                           sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n'
+                for event in full_events), encoding='utf-8')
+    first_line = 1
+    trace_index = []
+    for record in trajectories:
+        count = len(record['actions'])
+        trace_index.append({
+            'episode_id': record['episode_id'],
+            'split': record['split'], 'policy': record['policy'],
+            'first_line': first_line, 'steps': count,
+        })
+        first_line += count
+    if first_line != len(full_events) + 1:
+        raise ValueError('submission trace index incomplete')
+    (submission / 'trace_index.json').write_text(
+        json.dumps({
+            'format': 'ledgergym-public-development-transitions-v1',
+            'private_truth_exported': False,
+            'closed_mode': False,
+            'trajectories': trace_index,
+        }, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n',
+        encoding='utf-8')
     return summary
 
 

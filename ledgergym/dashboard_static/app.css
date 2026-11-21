@@ -163,6 +163,18 @@ button,select,a{outline-offset:3px}
 .findings-clean{border:1px solid #395a46;border-radius:9px;background:#1b3029;color:#b9e8b6;font-size:12px;line-height:1.7;padding:23px;grid-column:1/-1}
 @media(max-width:780px){.findings-grid{grid-template-columns:1fr}.findings-topline{align-items:flex-start;flex-direction:column}.findings-caption{text-align:left}}
 
+
+/* Research metrics are trusted aggregate evaluator artefacts, never agent data. */
+.research-panel{margin-bottom:26px}
+.research-state{border-left:2px solid #83b874;background:#193027;color:#afd3ba;font-size:11px;letter-spacing:.06em;padding:10px 13px;margin:20px 0 17px}
+.research-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.research-card{background:#182630;border:1px solid #2c414b;border-radius:10px;padding:18px;min-width:0}
+.research-name{font-size:10px;color:#91aab2;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.research-number{color:var(--mint);font-size:29px;font-weight:800;margin:8px 0 14px;font-variant-numeric:tabular-nums}
+.research-tags{display:flex;flex-wrap:wrap;gap:6px}
+.research-tag{background:#263841;color:#d1e5e0;border-radius:5px;padding:5px 7px;font-size:9px;font-weight:700}
+.research-footnote{color:#90a6ab;font-size:10px;line-height:1.7;margin:14px 0 0}
+@media(max-width:780px){.research-grid{grid-template-columns:1fr}}
 /* Recorded audit replay. Timelines are local deterministic development logs. */
 .replay-panel{margin-bottom:30px}
 .replay-heading{align-items:center}

@@ -12,6 +12,7 @@ def replay_actions(env, actions, *, seed=None, config=None):
     actions = copy.deepcopy(actions)
     initial, info = env.reset(seed=seed, config=config)
     steps = []
+    executed_actions = []
     for recorded in actions:
         action = copy.deepcopy(recorded)
         if steps and (steps[-1][2] or steps[-1][3]):
@@ -29,5 +30,7 @@ def replay_actions(env, actions, *, seed=None, config=None):
                     or source.get('table') != action.get('table') or not isinstance(token, str)):
                 raise ValueError('referenced step did not return a cursor for this table')
             action['cursor'] = token
+        executed_actions.append(copy.deepcopy(action))
         steps.append(env.step(action))
-    return {'initial': initial, 'info': info, 'steps': steps}
+    return {'initial': initial, 'info': info, 'steps': steps,
+            'executed_actions': executed_actions}

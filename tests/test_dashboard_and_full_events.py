@@ -41,6 +41,32 @@ def test_full_events_have_public_observations_rewards_and_exact_stable_order(tmp
         '"provenance"', '"private_pair_index"', '"interventions"', '"seed"',
     ):
         assert forbidden not in first.decode("utf-8")
+    submission = root / "evaluation" / "submission"
+    public_lines = [
+        json.loads(line)
+        for line in (submission / "trajectories.jsonl").read_text().splitlines()
+    ]
+    public_fields = {
+        "episode_id", "step", "action", "observation", "reward",
+        "terminated", "truncated",
+    }
+    assert len(public_lines) == len(events)
+    assert all(set(row) == public_fields for row in public_lines)
+    assert public_lines == [
+        {key: value for key, value in event.items() if key in public_fields}
+        for event in events
+    ]
+    index = json.loads((submission / "trace_index.json").read_text())
+    assert index["closed_mode"] is False
+    assert index["private_truth_exported"] is False
+    assert len(index["trajectories"]) == 60
+    assert sum(row["steps"] for row in index["trajectories"]) == len(public_lines)
+    assert index["trajectories"][0]["first_line"] == 1
+    assert all(forbidden not in (submission / "trajectories.jsonl").read_text()
+               for forbidden in (
+                   '"issue_id"', '"allowed_evidence_sets"',
+                   '"expected_amount_minor"', '"provenance"',
+               ))
     assert summary["replay"] == {"trajectories": 60, "score_matches": 60}
     # Evaluating a second time must be byte-stable despite pagination cursors.
     output = tmp_path / "again"
@@ -81,6 +107,7 @@ def test_local_dashboard_serves_only_whitelisted_public_resources(tmp_path):
                     assert b'"local_origin_required"' in exc.read()
                 else:
                     raise AssertionError("foreign origin reached local API")
+            assert json.loads(get("/api/research")[1]) == {"status": "not_run"}
             health = json.loads(get("/api/health")[1])
             assert health == {"status": "ok", "mode": "local_read_only",
                               "dataset": "synthetic_development"}
@@ -267,3 +294,34 @@ def test_dashboard_fails_on_manifest_episode_id_mismatch(tmp_path):
         finally:
             server.shutdown()
             thread.join(timeout=5)
+
+
+def test_optional_evaluator_research_aggregate_requires_matching_dataset(tmp_path):
+    from ledgergym.research_report import analyse_development_dataset
+    root, _ = _dataset(tmp_path)
+    report_root = tmp_path / "research"
+    research = analyse_development_dataset(root, report_root, trials=1)
+    file = report_root / "research_summary.json"
+    with dashboard_server(root, port=0, research_report=file) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            address = "http://127.0.0.1:" + str(server.server_address[1])
+            with urlopen(address + "/api/research", timeout=10) as response:
+                raw = response.read()
+            data = json.loads(raw)
+            assert data["status"] == "available"
+            assert data["report"]["episodes"] == 20
+            assert data["report"]["policies"]["reconciliation"]["tp"] == 42
+            assert data["report"]["official_score_modified"] is False
+            assert "dataset_index_sha256" not in data["report"]
+            assert b'"truth"' not in raw and b'"issue_id"' not in raw
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+    contents = json.loads(file.read_text())
+    contents["dataset_index_sha256"] = "0" * 64
+    tampered = tmp_path / "wrong-research.json"
+    tampered.write_text(json.dumps(contents))
+    with pytest.raises(ValueError, match="does not match"):
+        dashboard_server(root, port=0, research_report=tampered)

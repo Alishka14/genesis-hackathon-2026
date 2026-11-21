@@ -317,6 +317,60 @@ async function loadReplay() {
   }
 }
 
+function renderResearch(response) {
+  const root = $("research-cards");
+  root.replaceChildren();
+  if (!response || response.status !== "available") {
+    setText("research-state", "NOT RUN · Запусти research_report для исходного 10+10 датасета.");
+    return;
+  }
+  const report = response.report ?? {};
+  setText("research-state",
+    "AGGREGATE DEVELOPMENT REPORT · " + String(report.episodes ?? "—") +
+    " эпизодов · независимая проверка не заявлена");
+  for (const name of ["reconciliation", "seeded_random", "mark_all", "oracle"]) {
+    const metrics = report.policies?.[name];
+    if (!metrics) continue;
+    const panel = el("article", "research-card");
+    panel.append(el("div", "research-name", labels[name] ?? name));
+    const fp = el("div", "research-number", String(metrics.fp ?? "—") + " FP");
+    panel.append(fp);
+    const faa = metrics.faa ?? {};
+    const list = el("div", "research-tags");
+    const keys = [
+      ["FP_standard_valid", "STANDARD"],
+      ["FP_hard_negative", "HARD NEGATIVE"],
+      ["FP_duplicate", "DUPLICATE"],
+      ["FP_unattributed", "UNATTRIBUTED"],
+    ];
+    for (const [key, label] of keys) {
+      list.append(el("span", "research-tag", label + " · " + String(faa[key] ?? "—")));
+    }
+    panel.append(list);
+    const fpr = el("p", "research-footnote");
+    function formatRate(value) {
+      return typeof value === "number" && Number.isFinite(value)
+        ? fmt(value * 100, 0) + "%" : "N/A";
+    }
+    fpr.textContent =
+      "Clean standard: " + formatRate(metrics.standard_valid_case_fpr) +
+      " · Hard negative: " + formatRate(metrics.hard_negative_case_fpr) +
+      " · Invariance: " + String(metrics.invariance_trials_passed ?? "—");
+    panel.append(fpr);
+    root.append(panel);
+  }
+}
+
+async function loadResearch() {
+  try {
+    const report = await getJson("/api/research");
+    renderResearch(report);
+  } catch (error) {
+    setText("research-state", "Результаты диагностики недоступны: " +
+      String(error.message));
+  }
+}
+
 function bindControls() {
   $("split-select").addEventListener("change", updateEpisodes);
   $("episode-select").addEventListener("change", () => {
@@ -373,6 +427,7 @@ async function init() {
     state.episodes = results[1];
     renderSummary(results[0]);
     updateEpisodes();
+    void loadResearch();
   } catch (error) {
     setText("dataset-kind", "Ошибка: " + String(error.message));
     setText("record-status", "Проверь запуск с --dataset или --demo.");

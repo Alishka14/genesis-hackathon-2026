@@ -6,6 +6,7 @@ or arbitrary filesystem paths. Not a production web server or security boundary.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -190,9 +191,31 @@ def _dataset(root: Path):
     return root, summary, episodes
 
 
-def dashboard_server(dataset: Path, *, port: int = 8765):
-    """Create a localhost HTTP server; caller owns serve_forever()/close()."""
+def dashboard_server(dataset: Path, *, port: int = 8765,
+                     research_report: Path | None = None):
+    """Local read-only server; optionally expose one trusted aggregate report."""
     root, summary, episodes = _dataset(dataset)
+    research = None
+    if research_report is not None:
+        report_path = Path(research_report).expanduser()
+        if report_path.is_symlink() or not report_path.is_file():
+            raise ValueError("invalid research report")
+        if report_path.stat().st_size > 2 * 1024 * 1024:
+            raise ValueError("research aggregate too large")
+        candidate = json.loads(report_path.read_text(encoding="utf-8"))
+        if not isinstance(candidate, dict):
+            raise ValueError("research aggregate must be an object")
+        digest = hashlib.sha256((root / "index.json").read_bytes()).hexdigest()
+        if (candidate.get("kind") != "ledgergym_evaluator_only_research_diagnostics_v1"
+                or candidate.get("dataset_kind") != summary["kind"]
+                or candidate.get("dataset_index_sha256") != digest
+                or candidate.get("episodes") != 20
+                or candidate.get("private_truth_exported") is not False
+                or candidate.get("official_score_modified") is not False):
+            raise ValueError("research report does not match loaded dataset")
+        allowed = ("kind", "episodes", "policies", "clean_case_counts",
+                   "official_score_modified", "contest_certified", "limitations")
+        research = {key: candidate[key] for key in allowed if key in candidate}
 
     class DashboardHandler(BaseHTTPRequestHandler):
         server_version = "LedgerGymLocal/1.0"
@@ -243,6 +266,9 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                                      "dataset": "synthetic_development"})
                 elif path == "/api/summary":
                     self._json(200, summary)
+                elif path == "/api/research":
+                    self._json(200, {"status": "not_run"} if research is None
+                               else {"status": "available", "report": research})
                 elif path == "/api/episodes":
                     self._json(200, {
                         "train": list(episodes["train"].values()),
@@ -333,12 +359,17 @@ def main():
     source.add_argument("--dataset", type=Path, help="existing synthetic 10+10 dataset")
     source.add_argument("--demo", action="store_true", help="create temporary 10+10 local data")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--research-report", type=Path,
+                        help="optional matching evaluator-only aggregate report")
     args = parser.parse_args()
+    if args.demo and args.research_report is not None:
+        parser.error("--research-report requires --dataset")
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 and 65535")
 
     def serve(root):
-        with dashboard_server(root, port=args.port) as server:
+        with dashboard_server(root, port=args.port,
+                              research_report=args.research_report) as server:
             host, port = server.server_address
             print(f"LedgerGym Dashboard: http://{host}:{port}", flush=True)
             print("Read-only. Stop with Ctrl+C.", flush=True)

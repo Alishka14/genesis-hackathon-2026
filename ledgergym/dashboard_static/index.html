@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="LedgerGym — local evidence-first financial audit laboratory">
+  <title>LedgerGym — Audit Laboratory</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Навигация">
+      <a class="brand" href="#overview" aria-label="LedgerGym overview">
+        <span class="brand-symbol" aria-hidden="true">L<span class="brand-dot">.</span></span>
+        <span class="brand-name">LEDGER<span>GYM</span><small>FINANCIAL AUDIT LAB</small></span>
+      </a>
+      <div class="sidebar-title">WORKSPACE</div>
+      <nav class="nav">
+        <a class="nav-link is-active" href="#overview"><span aria-hidden="true">◈</span> Обзор</a>
+        <a class="nav-link" href="#benchmark"><span aria-hidden="true">▥</span> Benchmark</a>
+        <a class="nav-link" href="#explorer"><span aria-hidden="true">▤</span> Company Explorer</a>
+        <a class="nav-link" href="#findings"><span aria-hidden="true">⊕</span> Audit Findings</a>
+        <a class="nav-link" href="#replay"><span aria-hidden="true">↻</span> Agent Replay</a>
+        <a class="nav-link" href="#research"><span aria-hidden="true">▧</span> Research Lab</a>
+        <a class="nav-link" href="#architecture"><span aria-hidden="true">◇</span> Архитектура</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="side-label"><span class="live-dot"></span> LOCAL ENVIRONMENT</div>
+        <div class="side-copy">Только чтение.<br>Без внешних API.<br>Синтетические данные.</div>
+        <div class="side-version">LEDGERGYM / DEV PREVIEW</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumbs">WORKSPACE <span>/</span> FINTECH <span>/</span> <strong>OVERVIEW</strong></div>
+        <div class="topbar-right"><span class="top-pill"><span class="live-dot"></span> LOCALHOST</span><span class="top-date">2026 · RESEARCH EDITION</span></div>
+      </header>
+
+      <div class="content">
+        <section class="hero" id="overview" aria-labelledby="hero-title">
+          <div class="hero-grid" aria-hidden="true"></div>
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span> EVIDENCE-DRIVEN FINANCIAL INTELLIGENCE</div>
+            <h1 id="hero-title">Audit the facts.<br><span>Trust the evidence.</span></h1>
+            <p>Локальная исследовательская среда для проверки финансовых аномалий. Воспроизводимые сценарии, доказательные находки и строгая оценка решений.</p>
+            <div class="hero-actions"><a class="primary-link" href="#explorer">Исследовать данные <span aria-hidden="true">↗</span></a><a class="secondary-link" href="#benchmark">Результаты benchmark <span aria-hidden="true">→</span></a></div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="art-ring ring-a"></div><div class="art-ring ring-b"></div><div class="art-ring ring-c"></div>
+            <div class="art-center"><span>LG</span><small>SYNTHETIC<br>LOCAL</small></div>
+            <div class="art-label label-a">01 / GENERATE</div><div class="art-label label-b">02 / INVESTIGATE</div><div class="art-label label-c">03 / VERIFY</div>
+          </div>
+        </section>
+
+        <div class="section-header"><div><div class="section-kicker">LIVE DEVELOPMENT DATA</div><h2>Ключевые показатели</h2></div><span class="metadata" id="dataset-kind">Загрузка датасета…</span></div>
+        <section class="metrics" aria-label="Показатели датасета">
+          <article class="metric-card"><div class="metric-label">Эпизоды <span>↗</span></div><div class="metric-value" id="metric-episodes">—</div><div class="metric-note">TRAIN + DEV / SYNTHETIC</div></article>
+          <article class="metric-card"><div class="metric-label">Найдено ошибок <span>⊕</span></div><div class="metric-value" id="metric-tp">—</div><div class="metric-note">RECONCILIATION / TRUE POSITIVES</div></article>
+          <article class="metric-card"><div class="metric-label">Ложные находки <span>◎</span></div><div class="metric-value" id="metric-fp">—</div><div class="metric-note">RECONCILIATION / FALSE POSITIVES</div></article>
+          <article class="metric-card"><div class="metric-label">Replay <span>↻</span></div><div class="metric-value" id="metric-replays">—</div><div class="metric-note">MATCHED / TOTAL TRAJECTORIES</div></article>
+        </section>
+
+        <section class="benchmark-grid" id="benchmark" aria-label="Сравнение политик">
+          <article class="panel policy-panel">
+            <div class="panel-head"><div><div class="section-kicker">EVALUATION / 01</div><h2>Сравнение политик</h2></div><span class="pill subtle">INTERNAL BENCHMARK</span></div>
+            <p class="panel-sub">Средняя награда на одинаковых синтетических эпизодах, диапазон от −1 до +1.</p>
+            <div class="policy-bars" id="policy-bars"><div class="loading">Загрузка метрик…</div></div>
+            <div class="bar-legend"><span><i class="legend-positive"></i> Положительная награда</span><span><i class="legend-negative"></i> Отрицательная награда</span><span class="legend-axis">−1 <b>0</b> +1</span></div>
+            <div class="policy-note">Oracle — контроль с доступом к эталону, а не автономный агент. Reconciliation использует публичный checker, связанный с генератором.</div>
+          </article>
+
+          <article class="panel proof-panel">
+            <div class="panel-head"><div><div class="section-kicker">SCORING / 02</div><h2>Evidence-first</h2></div><span class="shield-symbol" aria-hidden="true">◇</span></div>
+            <div class="proof-graphic"><div class="proof-orbit"><span class="proof-center">F1</span><span class="proof-satellite sat-a">TP</span><span class="proof-satellite sat-b">FP</span><span class="proof-satellite sat-c">FN</span></div></div>
+            <div class="proof-callout"><span class="proof-indicator"></span><div><strong>Evidence-aware scoring</strong><small>Соответствие 1:1 · финансовое доказательство · штраф за лишние действия</small></div></div>
+            <p class="proof-footnote">Эта панель отображает проверенные показатели открытого development-набора, не результат закрытого тестирования жюри.</p>
+          </article>
+        </section>
+
+        <section class="panel explorer" id="explorer">
+          <div class="panel-head explorer-header"><div><div class="section-kicker">DATA / 03</div><h2>Company Explorer</h2><p class="panel-sub">Открытые финансовые записи выбранного синтетического эпизода.</p></div><span class="pill connected"><span class="live-dot"></span> PUBLIC DATA ONLY</span></div>
+          <div class="explorer-controls">
+            <label>Выборка<select id="split-select" aria-label="Выборка"><option value="train">Train</option><option value="dev">Dev</option></select></label>
+            <label>Эпизод<select id="episode-select" aria-label="Эпизод"><option>Загрузка…</option></select></label>
+            <label>Таблица<select id="table-select" aria-label="Таблица"><option value="invoices">Invoices</option><option value="payments">Payments</option><option value="ledger">Ledger</option><option value="fx">FX Rates</option></select></label>
+            <div class="explorer-meta" id="explorer-meta">—</div>
+          </div>
+          <div class="data-table-scroll"><table class="data-table" aria-label="Публичные записи"><thead id="record-head"><tr><th>Загрузка…</th></tr></thead><tbody id="record-body"><tr><td>Подключение к локальному датасету</td></tr></tbody></table></div>
+          <div class="table-footer"><span id="record-status">Показаны только публичные поля; приватные ответы не выдаются сервером.</span><div class="pagination"><button id="prev-page" disabled>← Назад</button><span id="page-status">—</span><button id="next-page" disabled>Вперёд →</button></div></div>
+        </section>
+
+
+        <section class="panel findings-panel" id="findings" aria-label="Результаты публичного аудита">
+          <div class="panel-head explorer-header">
+            <div><div class="section-kicker">EVIDENCE / 04</div><h2>Audit Findings</h2>
+              <p class="panel-sub">Детерминированная сверка публичных документов выбранного эпизода. Каждый вывод связан с доступными доказательствами.</p>
+            </div>
+            <span class="pill subtle">PUBLIC RECONCILIATION</span>
+          </div>
+          <div class="findings-topline">
+            <div class="findings-total"><strong id="findings-count">—</strong><span>найдено расхождений</span></div>
+            <div class="findings-caption" id="findings-scope">Выбери эпизод в Company Explorer</div>
+          </div>
+          <div id="findings-list" class="findings-grid" aria-live="polite"><div class="loading">Загрузка результатов сверки…</div></div>
+          <p class="policy-note">Эти находки получены из публичной финансовой модели с помощью детерминированного checker. Они не доказывают качество автономного агента на неизвестных данных и не раскрывают скрытый truth оценщика.</p>
+        </section>
+
+        <section class="panel replay-panel" id="replay" aria-label="Воспроизведение расследования">
+          <div class="panel-head replay-heading">
+            <div><div class="section-kicker">INVESTIGATION / 05</div><h2>Agent Replay</h2>
+              <p class="panel-sub">Пошаговое воспроизведение действий baseline на выбранном эпизоде. Только синтетические данные.</p></div>
+            <span class="pill subtle">RECORDED · READ ONLY</span>
+          </div>
+          <div class="replay-toolbar">
+            <label for="replay-policy">Политика
+              <select id="replay-policy">
+                <option value="reconciliation">Reconciliation</option>
+                <option value="seeded_random">Seeded Random</option>
+                <option value="mark_all">Mark All</option>
+              </select>
+            </label>
+            <span id="replay-mode" class="metadata">Ожидание траектории</span>
+            <div class="replay-navigation">
+              <button type="button" id="replay-prev" disabled aria-label="Предыдущий шаг">← Назад</button>
+              <span id="replay-position" aria-live="polite">—</span>
+              <button type="button" id="replay-next" disabled aria-label="Следующий шаг">Вперёд →</button>
+            </div>
+          </div>
+          <div class="replay-workspace">
+            <div class="replay-steps" id="replay-steps" aria-label="Шаги агента">
+              <div class="loading">Выбери эпизод для загрузки траектории.</div>
+            </div>
+            <div class="replay-inspector">
+              <div class="section-kicker">SELECTED EVENT</div>
+              <div class="replay-action" id="replay-action">—</div>
+              <div class="replay-description" id="replay-description">Выбери шаг расследования в списке слева.</div>
+              <div class="replay-stats">
+                <div><span>Прочитано записей</span><strong id="replay-records">—</strong></div>
+                <div><span>Отправлено findings</span><strong id="replay-findings">—</strong></div>
+                <div><span>Награда на шаге</span><strong id="replay-reward">—</strong></div>
+                <div><span>Статус</span><strong id="replay-status">—</strong></div>
+              </div>
+              <p class="replay-disclaimer">Трассировка создана в доверенной development-среде. Значение reward отсутствует в закрытом протоколе агента. Oracle не имеет агентской траектории.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel research-panel" id="research" aria-label="Исследовательская диагностика">
+          <div class="panel-head">
+            <div><div class="section-kicker">RESEARCH / 06</div><h2>Evidence & Risk Lab</h2>
+              <p class="panel-sub">EQT, FAA и инвариантность на отдельном отчёте локального доверенного оценщика.</p></div>
+            <span class="pill subtle">EVALUATOR-ONLY</span>
+          </div>
+          <div class="research-state" id="research-state">Исследовательский отчёт не загружен. Для метрик сначала выполни отдельную проверку 10+10.</div>
+          <div class="research-grid" id="research-cards"></div>
+          <p class="policy-note">Детальные скрытые метки, конкретные допустимые evidence sets и индивидуальные диагнозы не публикуются. Исследовательские показатели не входят в официальный reward и не являются независимым тестом обобщения.</p>
+        </section>
+
+        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 07</div><h2>Как устроен LedgerGym</h2></div></div>
+          <div class="architecture-grid">
+            <div class="arch-step"><span class="arch-number">01</span><div><h3>LedgerWorld</h3><p>Синтетические бухгалтерские операции: счета, оплаты, FX, периоды, чистые и ошибочные случаи.</p></div></div>
+            <div class="arch-step"><span class="arch-number">02</span><div><h3>LedgerSandbox</h3><p>Ограниченные действия расследования, budget и воспроизводимые переходы среды.</p></div></div>
+            <div class="arch-step"><span class="arch-number">03</span><div><h3>LedgerScore</h3><p>Проверка заявлений и доступных evidence sets с оценкой TP, FP, FN, F1 и reward.</p></div></div>
+          </div>
+        </section>
+        <footer class="footer"><span>LEDGERGYM © 2026 · SYNTHETIC FINANCIAL AUDIT LAB</span><span>LOCAL PREVIEW · NOT ORGANIZER CERTIFIED</span></footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

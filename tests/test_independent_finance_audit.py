@@ -145,3 +145,61 @@ def test_independent_v2_rejects_corrupted_refund_while_balanced():
     refund["invoice_refs"][0]["amount_minor"] += 1
     with pytest.raises(ValueError, match="independent audit"):
         audit_company(broken, truth)
+
+
+@pytest.mark.parametrize("tamper", [
+    "wrong_remittance_anchor",
+    "refund_journal_provenance",
+    "repeated_public_row_id",
+    "duplicate_foreign_quote",
+    "payment_entity",
+])
+def test_independent_v2_rejects_valid_money_with_corrupted_evidence(tamper):
+    public, truth, _ = build_settlement_company(
+        2026, {"postings": 320, "documents": 40})
+    public = copy.deepcopy(public)
+    if tamper == "wrong_remittance_anchor":
+        normal = next(p for p in public["tables"]["payments"]
+                      if p["kind"] == "payment" and len(p["invoice_refs"]) == 1)
+        normal["remittance_invoice_id"] = None
+    elif tamper == "refund_journal_provenance":
+        refund = next(p for p in public["tables"]["payments"] if p["kind"] == "refund")
+        journal = next(row for row in public["tables"]["ledger"]
+                       if row["payment_id"] == refund["payment_id"])
+        journal["invoice_id"] = public["tables"]["invoices"][0]["invoice_id"]
+    elif tamper == "repeated_public_row_id":
+        public["tables"]["ledger"][0]["row_id"] = public["tables"]["ledger"][-1]["row_id"]
+    elif tamper == "duplicate_foreign_quote":
+        public["tables"]["fx"][0]["date"] = public["tables"]["fx"][1]["date"]
+    else:
+        normal = next(p for p in public["tables"]["payments"]
+                      if p["kind"] == "payment" and len(p["invoice_refs"]) == 1)
+        normal["entity_id"] = "unauthorized-vendor"
+    with pytest.raises(ValueError, match="independent audit"):
+        audit_company(public, truth)
+
+
+def test_independent_v2_rejects_forged_truth_evidence():
+    public, truth, _ = build_settlement_fault_episode(
+        2026, {"postings": 320, "documents": 40,
+               "fault": "duplicate_allocation"})
+    forged = copy.deepcopy(truth)
+    forged["issues"][0]["allowed_evidence_sets"] = [["nonpublic-invoice"]]
+    with pytest.raises(ValueError, match="independent audit"):
+        audit_company(public, forged)
+
+
+def test_independent_v1_detects_policy_tampering():
+    public, truth, _ = build_company(
+        42, {"postings": 320, "documents": 40,
+             "foreign_currency": "EUR", "cutoff_timezone": "+09:00",
+             "period_month": "2026-10"})
+    assert audit_company(public, truth)["status"] == "PASS"
+    corrupt = copy.deepcopy(public)
+    corrupt["policy"]["cutoff_timezone"] = "+05:00"
+    with pytest.raises(ValueError, match="independent audit"):
+        audit_company(corrupt, truth)
+    corrupt = copy.deepcopy(public)
+    corrupt["policy"]["currency_exponents"] = {"KZT": 2, "JPY": 0}
+    with pytest.raises(ValueError, match="independent audit"):
+        audit_company(corrupt, truth)

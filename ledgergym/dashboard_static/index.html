@@ -22,6 +22,7 @@
         <a class="nav-link" href="#explorer"><span aria-hidden="true">▤</span> Company Explorer</a>
         <a class="nav-link" href="#findings"><span aria-hidden="true">⊕</span> Audit Findings</a>
         <a class="nav-link" href="#replay"><span aria-hidden="true">↻</span> Agent Replay</a>
+        <a class="nav-link" href="#research"><span aria-hidden="true">▧</span> Research Lab</a>
         <a class="nav-link" href="#architecture"><span aria-hidden="true">◇</span> Архитектура</a>
       </nav>
       <div class="sidebar-bottom">
@@ -146,7 +147,18 @@
           </div>
         </section>
 
-        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 06</div><h2>Как устроен LedgerGym</h2></div></div>
+        <section class="panel research-panel" id="research" aria-label="Исследовательская диагностика">
+          <div class="panel-head">
+            <div><div class="section-kicker">RESEARCH / 06</div><h2>Evidence & Risk Lab</h2>
+              <p class="panel-sub">EQT, FAA и инвариантность на отдельном отчёте локального доверенного оценщика.</p></div>
+            <span class="pill subtle">EVALUATOR-ONLY</span>
+          </div>
+          <div class="research-state" id="research-state">Исследовательский отчёт не загружен. Для метрик сначала выполни отдельную проверку 10+10.</div>
+          <div class="research-grid" id="research-cards"></div>
+          <p class="policy-note">Детальные скрытые метки, конкретные допустимые evidence sets и индивидуальные диагнозы не публикуются. Исследовательские показатели не входят в официальный reward и не являются независимым тестом обобщения.</p>
+        </section>
+
+        <section class="architecture" id="architecture"><div class="section-header"><div><div class="section-kicker">TRUST MODEL / 07</div><h2>Как устроен LedgerGym</h2></div></div>
           <div class="architecture-grid">
             <div class="arch-step"><span class="arch-number">01</span><div><h3>LedgerWorld</h3><p>Синтетические бухгалтерские операции: счета, оплаты, FX, периоды, чистые и ошибочные случаи.</p></div></div>
             <div class="arch-step"><span class="arch-number">02</span><div><h3>LedgerSandbox</h3><p>Ограниченные действия расследования, budget и воспроизводимые переходы среды.</p></div></div>

@@ -6,7 +6,6 @@ or arbitrary filesystem paths. Not a production web server or security boundary.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -142,9 +141,11 @@ def dashboard_server(dataset: Path, *, port: int = 8765):
                     })
                 else:
                     self._json(404, {"error": "not_found"})
+            except json.JSONDecodeError:
+                self._json(500, {"error": "local_dataset_unavailable"})
             except (ValueError, KeyError, TypeError):
                 self._json(400, {"error": "invalid_request"})
-            except (OSError, json.JSONDecodeError):
+            except OSError:
                 self._json(500, {"error": "local_dataset_unavailable"})
 
         def log_message(self, format_string, *args):

@@ -78,6 +78,7 @@ def test_all_four_policies_measure_false_accusations_on_both_clean_models(tmp_pa
     create_company_dataset(root, seed=2026, include_settlement_hard_negatives=True)
     report = evaluate_fixture_dataset(root, tmp_path / 'report')
     assert report['kind'] == 'synthetic_company_development_with_settlements'
+    assert 'model identity predicts empty truth' in report['shortcut_warning']
     assert report['replay'] == {'trajectories': 60, 'score_matches': 60}
     assert set(report['policies']) == {'seeded_random', 'reconciliation', 'mark_all', 'oracle'}
     assert report['model_counts'] == {

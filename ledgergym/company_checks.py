@@ -18,10 +18,10 @@ def _positive(value):
     return type(value) is int and value > 0
 
 
-def _moment(value):
+def _local_moment(value, zone=timezone(timedelta(hours=5))):
     stamp = datetime.fromisoformat(value)
     _require(stamp.utcoffset() is not None, 'timestamp needs offset')
-    return stamp.astimezone(timezone(timedelta(hours=5)))
+    return stamp.astimezone(zone)
 
 
 def _rounded(amount, rate):
@@ -53,15 +53,25 @@ def inspect_company(public):
 def _inspect(public):
     manifest, policy, tables = public['manifest'], public['policy'], public['tables']
     _require(manifest['schema_version'] == '0.3-company' and manifest['base_currency'] == 'KZT', 'unsupported company schema')
+    # Deliberately bounded, explicit variants. Never accept an unknown FX basis
+    # or infer currency exponents from untrusted values.
+    zone_text = policy.get('cutoff_timezone')
+    _require(zone_text in ('+03:00', '+05:00', '+09:00'), 'unsupported cutoff timezone')
+    zone = timezone(timedelta(hours=int(zone_text[1:3])))
+    foreign = next((name for name in ('USD', 'EUR')
+                    if policy.get('currency_exponents') == {'KZT': 2, name: 2}), None)
+    _require(foreign is not None, 'unsupported FX currency or exponent')
+    def _moment(value):
+        return _local_moment(value, zone)
     required_policy = {'accounting_model': 'accrual_company_v1', 'rounding': 'ROUND_HALF_EVEN',
-                       'currency_exponents': {'KZT': 2, 'USD': 2}, 'fx_date': 'local_transaction_date',
-                       'cutoff_timezone': '+05:00', 'period_rule': 'calendar_month_of_transaction',
+                       'currency_exponents': {'KZT': 2, foreign: 2}, 'fx_date': 'local_transaction_date',
+                       'cutoff_timezone': zone_text, 'period_rule': 'calendar_month_of_transaction',
                        'invoice_rounding': 'round_total_residual_to_last_line',
                        'duplicate_rule': 'one_invoice_per_service_ref',
                        'allocation_rule': 'allocate_full_payment_to_remittance_invoice',
                        'allocation_claim_currency': 'KZT'}
     _require(all(policy.get(k) == v for k, v in required_policy.items()), 'unsupported company policy')
-    _require(manifest['timezone'] == '+05:00' and manifest['rounding'] == 'ROUND_HALF_EVEN', 'manifest policy mismatch')
+    _require(manifest['timezone'] == zone_text and manifest['rounding'] == 'ROUND_HALF_EVEN', 'manifest policy mismatch')
     _require(set(tables) == {'ledger', 'invoices', 'payments', 'fx'}, 'unexpected tables')
     _require(manifest['counts'] == {k: len(v) for k, v in tables.items()}, 'count mismatch')
     start, end = _moment(manifest['period_start']), _moment(manifest['period_end'])
@@ -77,7 +87,7 @@ def _inspect(public):
                 register(record['doc_id'])
     rates, by_rate = {}, {}
     for rate in tables['fx']:
-        _require(rate['source_currency'] == 'USD' and rate['target_currency'] == 'KZT', 'unsupported currency quote')
+        _require(rate['source_currency'] == foreign and rate['target_currency'] == 'KZT', 'unsupported currency quote')
         _require(isinstance(rate['rate'], str) and re.fullmatch(r'[0-9]+(?:\.[0-9]+)?', rate['rate']) is not None
                  and Fraction(rate['rate']) > 0, 'invalid FX rate')
         _require(rate['date'] not in rates and datetime.fromisoformat(rate['date']).date().isoformat() == rate['date'], 'duplicate or invalid rate date')
@@ -85,7 +95,7 @@ def _inspect(public):
     def correct_rate(currency, stamp):
         if currency == 'KZT':
             return '1', None
-        _require(currency == 'USD', 'unsupported document currency')
+        _require(currency == foreign, 'unsupported document currency')
         rate = rates[_moment(stamp).date().isoformat()]
         return rate['rate'], rate['rate_id']
     invoices = {i['invoice_id']: i for i in tables['invoices']}

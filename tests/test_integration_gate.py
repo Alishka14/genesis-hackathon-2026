@@ -118,8 +118,17 @@ def test_failed_local_gate_is_never_reported_as_success_or_release_certification
     assert report["stages"]["tracked_private_files"]["status"] == "pass"
     assert all(report["stages"][key]["status"] == "fail"
                for key in ("pytest", "mixed_generator", "causal_pairs"))
-    assert "private" not in report_file.read_text()
-    assert "issue_id" not in report_file.read_text()
+    # The legitimate stage name "tracked_private_files" is not sensitive.
+    # Check for actual evaluator-only file paths and private issue labels.
+    serialized = report_file.read_text()
+    for secret in (
+        "private/truth.json",
+        "private/provenance.json",
+        "private_pair_index.json",
+        "issue_id",
+        "private-",
+    ):
+        assert secret not in serialized
 
 
 def test_invalid_gate_mode_does_not_touch_report(tmp_path):

@@ -35,6 +35,7 @@ def test_optional_settlement_mix_has_ten_disjoint_episodes_per_split(tmp_path):
     for split in ('train', 'dev'):
         models, fault_types, compounds = Counter(), set(), set()
         clean_count = 0
+        v2_clean = v2_faulty = 0
         for observed_split, entry, folder, public, truth in _read_episodes(first, {split: index[split], **{
             other: [] for other in ('train', 'dev') if other != split
         }}):
@@ -54,7 +55,10 @@ def test_optional_settlement_mix_has_ten_disjoint_episodes_per_split(tmp_path):
             assert 20 <= (len(public['tables']['payments']) +
                           len(public['tables']['invoices'])) <= 200
             if model == 'accrual_company_v2':
-                assert truth == {'issues': []}
+                from ledgergym.settlement_faults_v2 import validate_settlement_episode
+                validate_settlement_episode(public, truth)
+                v2_clean += not truth['issues']
+                v2_faulty += bool(truth['issues'])
                 payments = public['tables']['payments']
                 assert len([p for p in payments if p['kind'] == 'refund']) == 1
                 assert any(len(p['invoice_refs']) == 2 for p in payments if p['kind'] == 'payment')
@@ -62,7 +66,8 @@ def test_optional_settlement_mix_has_ten_disjoint_episodes_per_split(tmp_path):
             else:
                 assert model == 'accrual_company_v1'
         assert models == {'accrual_company_v1': 8, 'accrual_company_v2': 2}
-        assert clean_count == 3
+        assert clean_count == 2
+        assert (v2_clean, v2_faulty) == (1, 1)
         assert fault_types == {'duplicate_invoice', 'payment_allocation',
                                'fx_rate_or_date', 'reporting_period'}
         assert compounds == {'fx_allocation', 'duplicate_allocation'}
@@ -78,12 +83,15 @@ def test_all_four_policies_measure_false_accusations_on_both_clean_models(tmp_pa
     create_company_dataset(root, seed=2026, include_settlement_hard_negatives=True)
     report = evaluate_fixture_dataset(root, tmp_path / 'report')
     assert report['kind'] == 'synthetic_company_development_with_settlements'
-    assert 'model identity predicts empty truth' in report['shortcut_warning']
+    assert 'model identity alone no longer predicts empty truth' in report['shortcut_warning']
     assert report['replay'] == {'trajectories': 60, 'score_matches': 60}
     assert set(report['policies']) == {'seeded_random', 'reconciliation', 'mark_all', 'oracle'}
     assert report['model_counts'] == {
         'train': {'accrual_company_v1': 8, 'accrual_company_v2': 2},
         'dev': {'accrual_company_v1': 8, 'accrual_company_v2': 2},
+    }
+    assert report['v2_label_counts'] == {
+        'train': {'clean': 1, 'faulty': 1}, 'dev': {'clean': 1, 'faulty': 1}
     }
     assert report['policies']['reconciliation']['mean_f1'] == 1
     assert report['policies']['oracle']['mean_f1'] == 1
@@ -92,8 +100,8 @@ def test_all_four_policies_measure_false_accusations_on_both_clean_models(tmp_pa
         assert all(policy['episodes'] == 10 for policy in report['splits'][split].values())
 
     clean = report['clean_false_accusations']
-    for split, expected_legacy, expected_v2 in [('train', 1, 2), ('dev', 1, 2),
-                                                 ('overall', 2, 4)]:
+    for split, expected_legacy, expected_v2 in [('train', 1, 1), ('dev', 1, 1),
+                                                 ('overall', 2, 2)]:
         for model, count in [('accrual_company_v1', expected_legacy),
                              ('accrual_company_v2', expected_v2)]:
             policies = clean[split][model]
@@ -129,7 +137,8 @@ def test_reconciliation_baseline_rejects_corrupt_clean_v2_instead_of_hiding_faul
     root = tmp_path / 'data'
     index = create_company_dataset(root, seed=101, include_settlement_hard_negatives=True)
     clean = next((public, truth) for _, _, _, public, truth in _read_episodes(root, index)
-                 if public['policy']['accounting_model'] == 'accrual_company_v2')
+                 if public['policy']['accounting_model'] == 'accrual_company_v2'
+                 and not truth['issues'])
     public, truth = clean
     broken = copy.deepcopy(public)
     split = next(p for p in broken['tables']['payments']

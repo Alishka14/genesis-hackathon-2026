@@ -30,6 +30,8 @@ Dashboard предоставляет обзор эпизодов, F1/reward ср
 
 Предыдущие локальные результаты **на родительской ветке**: Python 3.14 full integration PASS; Docker 22/22; Python 3.11.18 offline installed-wheel gate 9/9 с 45/45 тестами и SHA-256 145 файлов. Новые recorder/dashboard/profile изменения **ещё требуют отдельного прогона**. Подробности: [P0 и dashboard handoff](docs/verification/P0_DASHBOARD_2026-11-21.md).
 
+**Матрица соответствия FinTech-кейсу:** [FINTECH_CONTRACT_AUDIT_2026-11-21.md](docs/verification/FINTECH_CONTRACT_AUDIT_2026-11-21.md) сопоставляет реализованный код со спецификацией среды, оценщика и генератора, отмечает допущения и задачи, требующие проверки по оригинальному приложению FinTech. Она не является официальной сертификацией.
+
 **Ниже содержатся разделы предыдущих этапов.** Они описывают состояние кода на момент создания и могут указывать, что split/refund или другие сценарии «ещё не реализованы». Для актуальных v2 сценариев см. [V2_CAUSAL_PAIRS](docs/verification/V2_CAUSAL_PAIRS.md), [OFFLINE_RELEASE_GATE](docs/verification/OFFLINE_RELEASE_GATE.md) и [финальный handoff](docs/verification/FINAL_SUBMISSION_HANDOFF_2026-11-21.md).
 
 ## Role 3 canonical judge runtime (21 November 2026)

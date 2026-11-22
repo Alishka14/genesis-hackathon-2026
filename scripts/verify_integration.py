@@ -101,28 +101,53 @@ def _assert_pair_metrics(summary: dict[str, Any]) -> dict[str, Any]:
             "audited_fault_issues": 8, "clean_false_accusations": 0}
 
 
+def _is_forbidden(name: str) -> bool:
+    parts = name.split("/")
+    return (name.endswith("/private/truth.json")
+            or name.endswith("/private/provenance.json")
+            or name.endswith("/private_pair_index.json")
+            or name == "private_pair_index.json"
+            or parts[-1] in {".env", ".envrc"})
+
+
+def _scan_source_tree() -> list[str]:
+    """Every file shipped with the checkout, for runs without Git (container, zip)."""
+    names = []
+    for path in ROOT.rglob("*"):
+        rel = path.relative_to(ROOT)
+        if rel.parts and rel.parts[0] in {".git", ".venv", "venv"}:
+            continue
+        if path.is_file():
+            names.append(rel.as_posix())
+    return names
+
+
 def _audit_tracked_private_files() -> dict[str, Any]:
-    """Fail closed if evaluator-only synthetic answer files are tracked by Git."""
+    """Fail closed if evaluator-only synthetic answer files are tracked by Git.
+
+    Without Git (a minimal container image, or a checkout downloaded as an
+    archive) the same rule is applied to every file in the source tree, so
+    the gate still runs and still fails on a shipped private answer file.
+    """
     try:
         completed = subprocess.run(
             ["git", "ls-files", "-z"], cwd=ROOT, check=False,
             capture_output=True,
         )
     except OSError:
-        return {"status": "fail", "reason": "git_unavailable"}
-    if completed.returncode != 0:
-        return {"status": "fail", "reason": "git_index_unavailable"}
+        completed = None
+    if completed is None or completed.returncode != 0:
+        names = _scan_source_tree()
+        forbidden = [name for name in names if _is_forbidden(name)]
+        if forbidden:
+            print("Evaluator-only files present in the source tree: "
+                  + ", ".join(forbidden[:10]), file=sys.stderr)
+        return {"status": "fail" if forbidden else "pass", "mode": "filesystem_scan",
+                "reason": "git_unavailable" if completed is None else "git_index_unavailable",
+                "scanned_count": len(names), "forbidden_count": len(forbidden)}
     names = [part.decode("utf-8", errors="replace").replace("\\", "/")
              for part in completed.stdout.split(b"\x00") if part]
-    forbidden = []
-    for name in names:
-        parts = name.split("/")
-        if (name.endswith("/private/truth.json")
-                or name.endswith("/private/provenance.json")
-                or name.endswith("/private_pair_index.json")
-                or name == "private_pair_index.json"
-                or parts[-1] in {".env", ".envrc"}):
-            forbidden.append(name)
+    forbidden = [name for name in names if _is_forbidden(name)]
     if forbidden:
         print("Tracked evaluator-only files (remove from Git index): "
               + ", ".join(forbidden[:10]), file=sys.stderr)

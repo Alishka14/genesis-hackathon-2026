@@ -4,6 +4,13 @@ from collections import Counter
 
 TYPES = {"duplicate_invoice", "payment_allocation", "fx_rate_or_date", "reporting_period"}
 
+# Declared amount tolerance (FinTech case, section 05): a finding's
+# claimed_amount_minor matches when |claimed - expected| <= this many minor
+# units of the issue currency. All money is integer minor units and every
+# expected amount is derived by the generator with the published rounding
+# rule (policy.json "rounding"), so the tolerance is 0: exact match.
+AMOUNT_TOLERANCE_MINOR = 0
+
 
 def accessible_evidence_ids(public):
     """Only public record/document IDs that can be retrieved through the read tools."""
@@ -83,7 +90,7 @@ def evaluate(issues, findings, public_ids, inspection_steps):
                 and set(finding["affected_ids"]) == set(issue["affected_ids"])
                 and set(finding["affected_ids"]) <= public_ids
                 and evidence <= public_ids
-                and finding["claimed_amount_minor"] == issue["expected_amount_minor"]
+                and abs(finding["claimed_amount_minor"] - issue["expected_amount_minor"]) <= AMOUNT_TOLERANCE_MINOR
                 and finding["currency"] == issue["currency"]
                 and any(set(allowed) <= evidence for allowed in issue["allowed_evidence_sets"]))
 

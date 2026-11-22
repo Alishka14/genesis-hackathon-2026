@@ -8,6 +8,9 @@ on:
       - 'ledgergym/**'
       - 'tests/**'
       - '.github/workflows/role3.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'scripts/**'
       - 'requirements-role3-test.txt'
 permissions:
   contents: read
@@ -88,3 +91,11 @@ jobs:
           "$py" -m pip install --no-index --find-links wheels --require-hashes -r requirements-runtime.lock
           cd "$stage"
           "$py" -I -m ledgergym.role3_demo local --trajectory installed.jsonl
+      - name: Build the Dockerfile from PyPI and run the one-command check offline inside it
+        if: matrix.python == '3.11'
+        run: |
+          set -euo pipefail
+          docker build -t ledgergym-ci .
+          docker run --rm --network none ledgergym-ci | tee docker-check.log
+          grep -q '"success": true' docker-check.log
+          docker run --rm --network none ledgergym-ci python scripts/jury_simulation.py > /dev/null

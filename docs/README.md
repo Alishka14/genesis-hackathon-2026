@@ -16,6 +16,7 @@
 | [verification/P0_FULL_RUN_2026-11-22.md](verification/P0_FULL_RUN_2026-11-22.md) | Полный релизный гейт с Docker |
 | [OFFLINE_INSTALL.md](OFFLINE_INSTALL.md) | Установка без сети из закреплённых wheel |
 | [PROVENANCE_AND_AI_DISCLOSURE.md](PROVENANCE_AND_AI_DISCLOSURE.md) | Что сделано с помощью ИИ (Codex, ChatGPT, Claude Code), сторонние компоненты |
+| [TEAM.md](TEAM.md) | Команда и вклад каждого участника |
 | [COMPETITION_RULES.md](COMPETITION_RULES.md) | Выдержка из положения хакатона |
 
 ## Спецификации и отчёты по отдельным частям

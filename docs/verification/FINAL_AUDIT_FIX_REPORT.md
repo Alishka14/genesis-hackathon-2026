@@ -1,105 +1,102 @@
 # LedgerGym — отчёт об исправлениях по аудиту (22.11.2026)
 
-**Ветка:** `fix/audit-p0` (локальная; не закоммичена и не отправлена на GitHub — ждёт решения капитана).
-**База:** `main` `508663205dd095f8b1282cec34034fc3bc38f9e4` (merge PR #41, после PR #42).
-**Окружение:** Linux x86_64, 2 CPU; Python 3.11.18 и 3.13.18 (pytest 9.1.1 есть только в 3.13); Docker отсутствует; сеть для pip отсутствует.
+**Ветка:** `fix/audit-p0`, отправлена на GitHub с разрешения капитана; черновик PR в `main`, без merge.
+**База:** `main` `508663205dd095f8b1282cec34034fc3bc38f9e4` (после PR #41/#42).
+**Проверенный код:** `daef68d3c1a82a7fb8a7994a2ac97cd7502be3af` (последний коммит кода; последующие коммиты меняют только этот отчёт).
+**Окружение:** Linux x86_64, 2 CPU; Python 3.11.18 (генерация, матрица, пробы) и 3.13.18 (pytest 9.1.1); Docker отсутствует; сети для pip нет.
 **Источник требований:** официальное ТЗ GENESIS FinTech 2026 (PDF, 6 страниц), предоставленное капитаном.
 
 Это локальная техническая проверка, а не сертификация Genesis и не оценка жюри.
 
-## 0. Почему база — `main`, а не `agent/world/lg-014`
+## 0. База и происхождение исправлений
 
-`agent/world/lg-014` был слит в PR #14 21.11; после этого в ветку отдельно запушен один коммит `15c9bc0` (финансовый отчёт). `main` с тех пор продвинулся на PR #15–#42 (40 файлов отличий). Патч `ledgergym-fixes.patch`, подготовленный на `lg-014`, проверен командой `git apply --check`: **конфликтует** и с `main`, и с draft PR #40. Поэтому патч не применялся механически; каждое его исправление пересмотрено против актуального кода (раздел A).
+`agent/world/lg-014` слит в PR #14; после merge в неё отдельно добавлен коммит `15c9bc0` (финансовый отчёт). Ранее подготовленный `ledgergym-fixes.patch` (на `lg-014`) по `git apply --check` конфликтует с `main` и с draft PR #40, поэтому каждое его исправление пересмотрено против `main`.
 
-## A. Исправленные и пересмотренные проблемы
+## A. Исправления
 
-| ID | Проблема | Файлы | Решение | Проверка | Статус |
+| ID | Проблема | Коммит / файлы | Исправление | Проверка | Статус |
 |---|---|---|---|---|---|
-| BUG-01 | Нет `LICENSE` собственного кода | — | **Не добавлена.** В PR #40 команда ведёт `docs/LICENSING_OWNER_APPROVAL.md` со статусом PENDING HUMAN APPROVAL; MIT из патча не утверждён правообладателями | — | Ждёт капитана |
-| BUG-02 | Падал `test_policy_evidence` | — | Уже исправлено в `main` (с дополнительной негативной проверкой) | pytest на `main`: passed | Не требуется |
-| BUG-03 | Финансовый отчёт устарел, скриптов нет | `docs/FINANCIAL_AUDIT_REPORT.md` (перенесён из `15c9bc0`), `ledgergym/financial_audit_matrix.py`, `tests/test_financial_audit_matrix.py` | Исходный текст сохранён; добавлен раздел 14 с SHA, командами, результатами и ограничениями методики; статус остаётся Draft | 5 тестов passed; CLI 700 миров / 1500 проверок / 0 FAIL, exit 0 | Исправлено |
-| BUG-04 | `INTERFACES.md` утверждал, что повторы ID — некорректная структура | `docs/INTERFACES.md` | Исправлена документация под фактический контракт и тест `test_repeated_ids_are_set_semantics_and_not_malformed`; код не менялся | Тест matcher passed; повтор целой находки = FP подтверждён пробой | Исправлено |
-| BUG-05 | `role3_mirror` без pytest падал с невнятным `RuntimeError` | `ledgergym/role3_mirror.py`, `tests/test_role3_mirror_diagnostics.py` | Явное `NOT_RUN` с командой установки и exit 2; при отсутствии JUnit — хвост вывода pytest | 2 регрессионных теста: FAIL на старом коде, PASS на новом; ручной запуск под 3.11 → exit 2 | Исправлено |
-| — | Раздел «Financial Amount Semantics» существовал только на `lg-014` | `docs/INTERFACES.md` | Перенесён без изменений, с пометкой источника; дубль абзаца удалён | diff: удалена только строка BUG-04 | Перенесено, ждёт утверждения |
-| RISK-04 | `verify_all.py` и `Dockerfile` из патча | — | **Не добавлены.** В `main` уже есть `scripts/verify_p0_release.py` («one-command local P0 preflight»); Dockerfile из патча ставит зависимости из сети вопреки офлайн-подходу с wheelhouse и не проверен | — | Отклонено как дубликат |
-| RISK-01 | Шаблонные параметры ошибок | — | **Не применено.** Draft PR #40 меняет тот же `company_world.py` через opt-in варианты (EUR, часовые пояса, месяц) с сохранением старых эпизодов байт-в-байт; изменения патча этому противоречат | Патч на копии ранее проходил тесты, но конфликтует с PR #40 | Ждёт решения капитана |
-| RISK-02 | Один допустимый набор доказательств | — | **Остановлено.** Matcher уже поддерживает несколько наборов (`score.py:88`, `any(...)`), но валидатор требует, чтобы каждый набор содержал всю цепочку `inspect_company` (`company_checks.py:234`). Пробa: меньший набор для FX без документа счёта → `ValueError: unsupported evidence`. Нужно решение, какие доказательства «достаточны» — это контракт эталона | Воспроизведено | Ждёт решения |
+| BUG-01 | Нет LICENSE | `daef68d`: `LICENSE`, `pyproject.toml`, `MANIFEST.in`, README, checklist | MIT, «LedgerGym contributors» — выбор капитана 22.11 | wheel: `License-Expression: MIT`, `licenses/LICENSE`; sdist содержит `LICENSE` | Исправлено |
+| BUG-02 | Падал `test_policy_evidence` | — | Уже исправлено в `main` (`a2be0a2`) | pytest | Не требовалось |
+| BUG-03 | Отчёт устарел, скриптов нет | `908dd9e`: `ledgergym/financial_audit_matrix.py`, тест, `docs/FINANCIAL_AUDIT_REPORT.md` | Воспроизводимая матрица с exit code; отчёт перенесён, разделы 1–13 без изменений, раздел 14 датирован; статус Draft | 700 миров / 1500 PASS в обоих режимах; порча данных отклоняется | Исправлено |
+| BUG-04 | Док: повторы ID «некорректны» | `52f8481`: `docs/INTERFACES.md` | Текст приведён к контракту (множество) | `test_repeated_ids_are_set_semantics_and_not_malformed` | Исправлено |
+| BUG-05 | `role3_mirror` без pytest — traceback | `800c684`: `role3_mirror.py`, тест | `NOT_RUN` + команда установки, exit 2 | 2 теста: FAIL на старом коде, PASS на новом | Исправлено |
+| RISK-01 | Шаблонные параметры ошибок | `5d70b32`: `company_world.py`, `company_dataset.py`, тест | Опция `fault_parameters="varied"` (±1–3 дня, 25/50/75 %, дубли KZT/USD) и `timestamp_offsets="mixed"` (5 смещений) | По умолчанию байт-в-байт как `main` (хэши public/truth/provenance); разнообразие на 40 seed; моменты времени не меняются | Исправлено как опция |
+| RISK-02 | Один набор доказательств | `5d70b32`: `company_world.py`, `company_checks.py` | Опция `evidence_alternatives=true`: FX без документа счёта, дубль — два документа счёта. Валидатор: каждый набор ⊇ минимального, хотя бы один ⊇ полной цепочки | Судья даёт TP на каждый набор и 0 при удалении любого ID; без опции минимальный набор не принимается | Исправлено как опция (решение капитана) |
+| RISK-04 | Единая команда и контейнер | — | Уже есть в `main`: `scripts/verify_p0_release.py`, README строка 64; закреплённый образ `python:3.11.11-slim-bookworm@sha256:0810…` в README и `OFFLINE_INSTALL.md`. Вывод первого аудита «частично» относился к устаревшему README `lg-014` | Чтение `main` | Не требовалось |
 
-## B. Тестирование (на рабочем дереве `fix/audit-p0`)
+Опциональные режимы описаны в `docs/INTERFACES.md`, раздел «Опциональные режимы генератора». Опубликованный датасет не меняется: команда по умолчанию даёт те же 160 файлов эпизодов (SHA-256 совпадают с `main`).
+
+## B. Тестирование
 
 | Проверка | Команда | Passed | Failed | Skipped | Результат |
 |---|---|---:|---:|---:|---|
-| pytest (база `main`) | `python3 -m pytest -q -rs -p no:cacheprovider` | 673 | 0 | 14 | PASS |
-| pytest (`fix/audit-p0`) | то же | 680 | 0 | 14 | PASS |
-| Docker isolation (7+7) | входит в pytest | — | — | 14 | **NOT_RUN** (нет Docker) |
-| Focused P0 gate, `main` | `python3 scripts/verify_p0_release.py --mode focused` | 3 этапа | 0 | — | PASS (`technical_pass: true`) |
-| Focused P0 gate, `fix/audit-p0` | то же | 2 этапа | 1 | — | FAIL только `source_provenance: clean_checkout=false` (изменения не закоммичены); JS и тесты PASS |
-| Full P0 / offline wheel gate Python 3.11 | `--mode full --wheelhouse …` | — | — | — | **NOT_RUN** (нет wheelhouse и сети) |
+| pytest, база `main` 5086632 | `python3 -m pytest -q -rs -p no:cacheprovider` | 673 | 0 | 14 | PASS |
+| pytest, `fix/audit-p0` | то же | 713 | 0 | 14 | PASS |
+| Docker (7 isolated runner + 7 role3 runtime) | входит в pytest | — | — | 14 | **NOT_RUN** (нет Docker) |
+| Focused P0 gate на `daef68d` (чистый worktree) | `python3 scripts/verify_p0_release.py --mode focused --report …` | 3 этапа | 0 | — | PASS, `technical_pass: true` |
+| Full P0 / offline wheel gate Python 3.11 | `--mode full --wheelhouse … --bundle …` | — | — | — | **NOT_RUN** (нет wheelhouse, сети и Docker) |
 | Финансовая матрица | `python3.11 -m ledgergym.financial_audit_matrix` | 1500 | 0 | — | PASS, 700 миров |
-| Датасет 10+10 + baseline + replay | `python3.11 -m ledgergym.company_dataset DIR --evaluate --settlement-hard-negatives` | 60/60 replay | 0 | — | PASS |
-| Детерминизм | два прогона, SHA-256 всех файлов эпизодов | 160 файлов | 0 | — | Идентичны; траектории идентичны |
-| Публичный пакет | `export_submission.py` + `verify_submission_package.py` | 125 файлов | 0 | — | PASS, 60 траекторий, 1488 переходов, `private_truth_exported: false` |
-| Wheel / sdist | `pip wheel --no-build-isolation`, `build_meta.build_sdist` | собраны | 0 | — | Новые модули и тесты внутри, приватных файлов нет; собственной LICENSE нет |
-| Контракт и атаки (внешняя проба) | `probe_judge.py` | 29 | 1 | — | Единственный FAIL (S8) проверял старое утверждение документации, исправленное в BUG-04 |
+| Финансовая матрица, новый режим | то же `--varied` | 1500 | 0 | — | PASS, 700 миров |
+| Датасет по умолчанию | `python3.11 -m ledgergym.company_dataset DIR --evaluate --settlement-hard-negatives` | replay 60/60 | 0 | — | PASS; 160 файлов идентичны `main` |
+| Датасет `--varied` + экспорт + проверка пакета | `company_dataset … --varied`, `export_submission.py`, `verify_submission_package.py` | 125 файлов, 1488 переходов | 0 | — | PASS; названий опций и приватных полей в публичном пакете нет |
+| Baseline в режиме `--varied` | `evaluation/summary.json` | oracle и сверка F1=1; mark_all и random F1=0 | — | — | Как ожидалось |
+| Wheel / sdist | `pip wheel --no-build-isolation`, `build_meta.build_sdist` | собраны | 0 | — | LICENSE внутри, приватных файлов нет |
+| Внешняя проба контракта и атак | `probe_judge.py` (вне репозитория) | 29 | 1 | — | Единственный FAIL (S8) проверяет старое утверждение документации, исправленное в BUG-04 |
 
 ## C. GitHub PR и Actions (через REST API; UI не просматривался)
 
 | PR | Branch | Status | CI | Причина | Решение |
 |---|---|---|---|---|---|
-| #40 | `agent/quality/lg-040-independent-finance-metamorphic` | open, **draft**, `mergeable=false`, `mergeable_state=dirty` | 3 jobs failure | (1) **Конфликт с `main`** — ветка отстаёт от PR #41/#42. (2) CI не стартует: `runner_id=0`, 0 шагов, ~2 с | Владельцу PR: rebase на `main`. CI — см. ниже |
-| #1–#39, #41, #42 | разные | closed/merged | failure | Та же причина CI | — |
-| Issue #29 | — | open | — | **Корневая причина установлена:** аннотация задания: *«The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section»* | Только владелец аккаунта: Settings → Billing & plans. Код и workflow чинить не нужно |
-
-Проверены jobs прогонов 44938842822, 44938842796 (PR #40) и 44941244097 (PR #42). Ни один красный статус не связан с падением тестов.
+| #40 | `agent/quality/lg-040-independent-finance-metamorphic` | open, draft, `mergeable_state=dirty` | failure | Конфликт с `main`; CI не стартует | Rebase владельцем PR. `company_world.py` и `_config` меняются и здесь, и в #40 — при rebase объединить списки ключей |
+| новый | `fix/audit-p0` | draft | ожидается failure | CI не стартует | Решение по биллингу |
+| Issue #29 | — | open | — | Аннотация job: «The job was not started because recent account payments have failed or your spending limit needs to be increased» | Только владелец: Settings → Billing & plans |
 
 ## D. Оставшиеся риски
 
-**P0:** собственная LICENSE не утверждена; CI заблокирован биллингом; Docker-изоляция не перепроверена на текущем SHA (ранее заявлено 22/22 на `a2be0a26`); изменения `fix/audit-p0` не закоммичены, поэтому P0 gate на них не может дать PASS.
-**P1:** шаблонные параметры ошибок (FX всегда −1 день, аллокация 50%, дубли только в KZT) — решать вместе с PR #40; один набор доказательств (RISK-02); PR #40 конфликтует с `main`.
-**P2:** перенесённый финансовый отчёт и раздел семантики сумм требуют утверждения автором и командой; `financial_impact.py` не реализован.
+**P0:** CI заблокирован биллингом; Docker-изоляция и full offline gate на текущем SHA не перепроверены (NOT_RUN); дедлайн по README — 22.11, 23:59 (Астана).
+**P1:** конфликт с PR #40 в `company_world.py`; опциональные режимы не включены в опубликованный датасет (решение команды); перенесённые отчёт и раздел семантики сумм требуют утверждения автором.
+**P2:** `financial_impact.py` не реализован; README содержит исторические разделы старых PR.
 
 ## E. Соответствие ТЗ (кратко)
 
 | Раздел ТЗ | Статус | Доказательство |
 |---|---|---|
-| 02 четыре типа, два compound, чистые и отвлекающие случаи | Выполнено | матрица 700 миров; тесты v1/v2 |
-| 02 вариативность валют/часовых поясов | Частично | только KZT/USD и +05:00 по умолчанию; PR #40 добавляет opt-in варианты |
+| 02 четыре типа, два compound, чистые и отвлекающие случаи | Выполнено | матрица 700 миров ×2 режима; тесты v1/v2 |
+| 02 вариативность сумм, валют, часовых поясов; защита от простых трюков | Выполнено как опция | `fault_parameters`, `timestamp_offsets` (+ EUR/+03/+09 в PR #40) |
 | 03 формат эпизода, null, закрытые файлы | Выполнено | экспорт 125 файлов, private truth не экспортирован |
-| 04 reset/step, 5 действий, 100 шагов, тайм-аут, курсоры | Выполнено | `tests/test_role3_*`, внешняя проба |
-| 05 matcher 1:1, метрики, награда, атаки | Выполнено | `test_matcher_p0_regression`, `test_role4_redteam`, проба |
+| 04 reset/step, 5 действий, 100 шагов, тайм-аут, курсоры | Выполнено | тесты проекта, внешняя проба |
+| 05 matcher 1:1, «хотя бы один полный допустимый набор» | Выполнено | несколько наборов поддержаны и проверены |
 | 06/07 четыре политики, траектории без эталона | Выполнено | summary, `verify_submission_package` |
 | 07 изоляция агента | Не проверено здесь | Docker NOT_RUN |
-| 07/09 контейнер и единая команда | Частично | `verify_p0_release.py`; full-режим требует wheelhouse |
-| 09 исходники с лицензией | **Не выполнено** | LICENSE отсутствует (ожидает решения) |
+| 07/09 контейнер и единая команда | Выполнено в документации | README строка 64, закреплённый образ |
+| 09 исходники с лицензией | Выполнено | `LICENSE` (MIT) |
 
 ## F. Прогноз по официальной шкале (не результат жюри)
 
 | Критерий | Макс. | Прогноз | Обоснование |
 |---|---:|---:|---|
-| Контракт и изоляция | 25 | 21 | Все внешние пробы контракта прошли; Docker-изоляция здесь не проверена |
-| Данные и эталон | 25 | 20 | Равенства и достижимость доказательств подтверждены, генерация детерминирована; ошибки шаблонны, один набор доказательств |
-| Надёжность награды | 25 | 23 | Matcher и атакующие тесты сильные; допуск суммы 0 — проектное решение |
-| Воспроизводимость | 15 | 13 | Байт-в-байт повтор; инвариантность к переименованию ID покрыта тестами проекта, здесь отдельно не перепроверялась |
-| Инженерия | 10 | 7 | Одна команда, версии, траектории, честные ограничения есть; CI не работает, LICENSE нет |
-| **Итого** | **100** | **≈84** | Предыдущая экспертная оценка 75 |
+| Контракт и изоляция | 25 | 21 | Контракт подтверждён пробами и тестами; Docker-изоляция здесь не перепроверена |
+| Данные и эталон | 25 | 22 | Плюс варьируемые параметры и альтернативные доказательства; режимы опциональны и не включены в опубликованный датасет |
+| Надёжность награды | 25 | 23 | Matcher и атаки сильные; несколько наборов доказательств проверены |
+| Воспроизводимость | 15 | 13 | Байт-в-байт повтор; финансовая матрица в репозитории |
+| Инженерия | 10 | 8 | Лицензия, одна команда, честные ограничения; CI не работает |
+| **Итого** | **100** | **≈87** | Предыдущая оценка этого аудита ≈84, экспертная до него — 75 |
 
-## G. Требует решения капитана
+## G. Требует решения команды
 
-1. Утвердить лицензию и правообладателей по `docs/LICENSING_OWNER_APPROVAL.md` (PR #40), затем добавить LICENSE отдельным коммитом и повторить full P0.
-2. Починить биллинг GitHub Actions (Issue #29).
-3. Разрешить коммит изменений `fix/audit-p0` (и, при желании, push и PR в `main`).
-4. Решить судьбу RISK-01 (интегрировать рандомизацию параметров как opt-in поверх PR #40 или отказаться) и RISK-02 (какие доказательства считаются достаточными).
-5. Владельцу PR #40 — rebase на `main`.
-6. Автору финансового отчёта — утвердить перенос отчёта и раздела семантики сумм.
+1. Биллинг GitHub Actions (Issue #29), затем CI на ветке.
+2. Full P0 gate с Docker и wheelhouse на итоговом SHA перед подачей.
+3. Merge PR `fix/audit-p0` и согласование с PR #40.
+4. Включать ли опциональные режимы в опубликованный датасет (сейчас нет).
+5. Подтверждение авторства участниками и утверждение перенесённого финансового отчёта.
 
 ## Как продолжить
 
 ```bash
-git checkout fix/audit-p0          # локальная ветка от main 5086632
-git status                         # 2 изменённых + 5 новых файлов
+git fetch origin fix/audit-p0 && git checkout fix/audit-p0
 python3 -m pytest -q -rs -p no:cacheprovider
-python3.11 -m ledgergym.financial_audit_matrix
-# после коммита:
+python3.11 -m ledgergym.financial_audit_matrix && python3.11 -m ledgergym.financial_audit_matrix --varied
 python3 scripts/verify_p0_release.py --mode focused --report "$HOME/p0-focused.json"
 # на машине с Docker и wheelhouse:
 python scripts/verify_p0_release.py --mode full --wheelhouse WH --bundle NEW_DIR --report REPORT.json

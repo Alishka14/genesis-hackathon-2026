@@ -220,6 +220,14 @@ def validate_company(public, truth):
         remaining, private_ids = set(expected), set()
         public_ids = {v for rows in public['tables'].values() for row in rows for k, v in row.items()
                       if k.endswith('_id') and isinstance(v, str)}
+        invoice_docs = {row['doc_id'] for row in public['tables']['invoices']}
+        def sufficient(kind, chain):
+            # Smallest public subset that still proves the fault; every allowed set must contain it.
+            if kind == 'fx_rate_or_date':
+                return chain - invoice_docs   # payment, both journal rows, correct-date rate
+            if kind == 'duplicate_invoice':
+                return chain & invoice_docs   # the two invoices sharing one service reference
+            return chain
         for issue in issues:
             key = signature(issue, 'expected_amount_minor')
             _require(type(issue['expected_amount_minor']) is int and key in remaining, 'truth differs from public facts')
@@ -231,6 +239,7 @@ def validate_company(public, truth):
             _require(isinstance(sets, list) and sets, 'missing evidence')
             for evidence in sets:
                 _require(isinstance(evidence, list) and 0 < len(evidence) <= 10 and len(set(evidence)) == len(evidence)
-                         and expected[key] <= set(evidence) <= public_ids, 'unsupported evidence')
+                         and sufficient(key[0], expected[key]) <= set(evidence) <= public_ids, 'unsupported evidence')
+            _require(any(expected[key] <= set(evidence) for evidence in sets), 'canonical evidence chain missing')
     except (KeyError, TypeError) as exc:
         raise ValueError('malformed company truth') from exc

@@ -171,6 +171,8 @@ docker build --network none -t ledgergym .
 
 ## Документация
 
+Полный указатель — [docs/README.md](docs/README.md): что актуально для жюри, а что относится к истории разработки.
+
 - [Design note](docs/DESIGN_NOTE.md): архитектура и границы доверия.
 - [Интерфейсы](docs/INTERFACES.md): контракт reset/step, формат находок, правила оценки.
 - [Финансовая модель](docs/COMPANY_MODEL.md): семантика сумм и допущения.

@@ -21,3 +21,13 @@ def test_help_flags_print_usage_instead_of_running():
         result = subprocess.run(command, text=True, capture_output=True, check=True, cwd=root)
         assert result.stdout.startswith('usage:')
         assert 'prototype' not in result.stdout
+
+
+def test_judge_walkthrough_example_finds_all_planted_errors():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run([sys.executable, str(root / 'examples' / 'judge_walkthrough.py')],
+                            text=True, capture_output=True, check=True, cwd=root)
+    last = result.stdout.strip().splitlines()[-1]
+    assert 'TP 4  FP 0  FN 0' in last and 'F1 1.00' in last
+    assert 'reward to agent=0.0  info={}' in result.stdout

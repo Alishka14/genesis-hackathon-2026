@@ -1,5 +1,6 @@
 """Coherent synthetic accrual histories with explicit private interventions."""
 import copy
+from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from decimal import Context, Decimal, ROUND_HALF_EVEN, localcontext
 import random
@@ -28,6 +29,13 @@ OPTIONS = {
     # Adds a second, smaller sufficient evidence set where the canonical chain over-specifies:
     # fx_rate_or_date without the invoice document, duplicate_invoice with the two invoice documents only.
     'evidence_alternatives': (False, (False, True)),
+    # Opt-in accounting month, including leap years and year boundaries.
+    # The default remains February 2026 for byte-compatible legacy output.
+    'reporting_month': ('2026-02', tuple(
+        f'{year:04d}-{month:02d}' for year in range(2020, 2040) for month in range(1, 13))),
+    # Opt-in independent FX path: nonmonotonic rates, all quoted days distinct.
+    # Existing linear rates remain the default.
+    'fx_rate_pattern': ('linear', ('linear', 'volatile')),
 }
 _RENDER_OFFSETS = tuple(timezone(timedelta(hours=h)) for h in (-5, 0, 3, 5, 6))
 
@@ -102,6 +110,10 @@ def build_company(seed, config):
     payment_count = config['documents'] // 3
     invoice_count = config['documents'] - payment_count
     plan = _plan(seed, config, payment_count)
+    period_year, period_month = map(int, _option(config, 'reporting_month').split('-'))
+    period_first = date(period_year, period_month, 1)
+    period_previous = period_first - timedelta(days=1)
+    period_last = monthrange(period_year, period_month)[1]
     rng = random.Random(f'{VERSION}:{seed}')
     def new_id():
         return f'id-{rng.getrandbits(128):032x}'
@@ -112,9 +124,19 @@ def build_company(seed, config):
         line_counts[rng.randrange(invoice_count)] += 1
     fx = []
     initial_rate = rng.randint(43000, 47000)
+    volatile_rng = (random.Random(f'{VERSION}:fx-volatility:{seed}')
+                    if _option(config, 'fx_rate_pattern') == 'volatile' else None)
+    used_quotes = set()
     for day in range(29):
         hundredths = initial_rate + 13 * day
-        fx.append({'rate_id': new_id(), 'date': (date(2026, 1, 31) + timedelta(days=day)).isoformat(),
+        if volatile_rng is not None:
+            hundredths += volatile_rng.randint(-250, 250)
+            # Any wrong-day quote remains observably different; duplicates
+            # would create an ambiguous zero-amount FX anomaly.
+            while hundredths in used_quotes:
+                hundredths += 1
+            used_quotes.add(hundredths)
+        fx.append({'rate_id': new_id(), 'date': (period_previous + timedelta(days=day)).isoformat(),
                    'source_currency': 'USD', 'target_currency': 'KZT',
                    'rate': f'{hundredths // 100}.{hundredths % 100:02d}'})
     by_date = {r['date']: r for r in fx}
@@ -137,9 +159,9 @@ def build_company(seed, config):
         currency = 'USD' if pair_index % 2 else 'KZT'
         total = rng.randint(100000, 500000)
         if pair_index == 0 or (pair_index % 2 == 1 and pair_index < 12):
-            stamp = '2026-01-31T23:30:00+00:00'
+            stamp = f'{period_previous.isoformat()}T23:30:00+00:00'
         else:
-            stamp = f'2026-02-{rng.randint(2, 24):02d}T{rng.randint(8, 17):02d}:30:00+05:00'
+            stamp = f'{period_first.strftime("%Y-%m")}-{rng.randint(2, 24):02d}T{rng.randint(8, 17):02d}:30:00+05:00'
         category = rng.choice(['hosting', 'equipment support', 'licensing', 'training', 'maintenance'])
         pair = []
         for _ in range(min(2, invoice_count - len(invoices))):
@@ -179,13 +201,13 @@ def build_company(seed, config):
         payment_journals[payment_id] = [
             posting('payable', converted, 0, target['entity_id'], payment['timestamp'], target['invoice_id'], payment_id, rate=rate_id),
             posting('bank', 0, converted, target['entity_id'], payment['timestamp'], target['invoice_id'], payment_id, rate=rate_id)]
-    start = '2026-02-01T00:00:00+05:00'
+    start = f'{period_first.isoformat()}T00:00:00+05:00'
     funding = outflow * 2 + 100000
     posting('bank', funding, 0, company_id, start)
     posting('equity', 0, funding, company_id, start)
     tables = {'invoices': invoices, 'payments': payments, 'ledger': ledger, 'fx': fx}
     public = {'manifest': {'schema_version': '0.3-company', 'episode_id': episode_id, 'company_id': company_id,
-                           'base_currency': 'KZT', 'period_start': start, 'period_end': '2026-02-28T23:59:59+05:00',
+                           'base_currency': 'KZT', 'period_start': start, 'period_end': f'{period_year:04d}-{period_month:02d}-{period_last:02d}T23:59:59+05:00',
                            'timezone': '+05:00', 'rounding': 'ROUND_HALF_EVEN', 'counts': {k: len(v) for k, v in tables.items()}},
               'policy': {'accounting_model': 'accrual_company_v1', 'rounding': 'ROUND_HALF_EVEN',
                          'currency_exponents': {'KZT': 2, 'USD': 2}, 'fx_date': 'local_transaction_date',
@@ -259,7 +281,7 @@ def build_company(seed, config):
         if kind == 'reporting_period':
             for row in ledger:
                 if row['invoice_id'] == first['invoice_id'] and row['payment_id'] is None:
-                    change('ledger', row, 'reporting_period', '2026-01', 'row_id')
+                    change('ledger', row, 'reporting_period', period_previous.strftime('%Y-%m'), 'row_id')
             group.append(issue('reporting_period', [first['invoice_id']], _convert(first['total_minor'], rate), 'KZT',
                                [first['doc_id'], credits[first['invoice_id']]['row_id']]))
         if kind in COMPOUNDS:

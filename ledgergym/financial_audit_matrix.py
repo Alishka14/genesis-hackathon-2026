@@ -34,7 +34,9 @@ CONFIGS = {
 }
 
 # Opt-in generator options (see company_world.OPTIONS) exercised by --varied.
-VARIED = {"fault_parameters": "varied", "timestamp_offsets": "mixed", "evidence_alternatives": True}
+VARIED = {"fault_parameters": "varied", "timestamp_offsets": "mixed",
+          "evidence_alternatives": True, "reporting_month": "2028-02",
+          "fx_rate_pattern": "volatile"}
 
 
 def round_half_even(amount, rate):

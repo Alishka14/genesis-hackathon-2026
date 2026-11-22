@@ -32,30 +32,50 @@ python3 -m ledgergym.company_dataset "$HOME/ledgergym-run" --evaluate --settleme
 Диагностика агентов (P, R, F1, возврат, шаги, время и разбор сбоев по типам) на этом наборе и на 30 новых эпизодах с невиданными seed и параметрами:
 
 ```bash
-python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-out 30
+python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-out 30 --brief
+```
+
+Демо работы среды на скриптовой политике (§09 кейса): каждый вызов `reset`/`step` и наблюдение, оценка в закрытом режиме, режим обучения и попытки обмануть награду:
+
+```bash
+python3 examples/judge_walkthrough.py --detailed
 ```
 
 ## Проверка одной командой
 
-В закреплённом контейнере Python 3.11 (тот же образ, что и для изоляции агента). Команда ставит закреплённые по хэшу зависимости тестов, затем прогоняет все автотесты, генерацию 10+10 с повтором 60 траекторий, 6 причинных пар «чистый / с ошибкой» и проверку того, что в исходниках нет файлов эталона:
+**Через Docker** (образ на закреплённом по digest `python:3.11.11-slim-bookworm`, тот же, что и для изоляции агента; зависимости тестов закреплены по SHA-256):
 
 ```bash
-docker run --rm -v "$PWD":/src:ro -w /src python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5 sh -c "pip install -q --root-user-action=ignore -r requirements-role3-test.txt && python scripts/verify_integration.py --mode focused --report /tmp/report.json"
-```
-
-Успех: последняя строка содержит `"success": true` (около минуты).
-
-Полностью без сети, как в официальной проверке: один раз с сетью скачать 8 закреплённых wheel, затем запускать контейнер с `--network none`:
-
-```bash
-python3 scripts/prepare_wheelhouse.py ./wheelhouse
+docker build -t ledgergym .
 ```
 
 ```bash
-docker run --rm --network none -v "$PWD":/src:ro -v "$PWD/wheelhouse":/wheels:ro -w /src python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5 sh -c "pip install -q --root-user-action=ignore --no-index --find-links /wheels -r requirements-role3-test.txt && python scripts/verify_integration.py --mode focused --report /tmp/report.json"
+docker run --rm --network none ledgergym
 ```
 
-Без Docker: `python3 -m pip install -r requirements-role3-test.txt`, затем `python3 scripts/verify_integration.py --mode focused`. Полный релизный гейт с реальными Docker-тестами изоляции и установкой из wheel: `python3 scripts/verify_p0_release.py --mode full --wheelhouse ./wheelhouse --bundle <новая папка> --report <файл>`.
+Команда прогоняет все автотесты, генерацию 10+10 с повтором 60 траекторий, 6 причинных пар «чистый / с ошибкой» и проверку того, что в исходниках нет файлов эталона. Успех — `"success": true` в последней строке, около минуты. Тесты Docker-изоляции внутри контейнера пропускаются: им нужен Docker хоста, они запускаются локально командой ниже.
+
+Другие проверки в том же образе:
+
+```bash
+docker run --rm --network none ledgergym python scripts/jury_simulation.py
+```
+
+```bash
+docker run --rm --network none ledgergym python -m ledgergym.agent_diagnostics --held-out 30
+```
+
+**Полностью без сети, включая сборку:** один раз с сетью скачать 8 закреплённых wheel в `./ledgergym-wheelhouse`. Если эта папка есть, `docker build` ставит зависимости из неё без обращения к индексу пакетов:
+
+```bash
+python3 scripts/prepare_wheelhouse.py ./ledgergym-wheelhouse
+```
+
+```bash
+docker build --network none -t ledgergym .
+```
+
+**Без Docker:** `python3 -m pip install -r requirements-role3-test.txt`, затем `python3 scripts/verify_integration.py --mode focused`. Полный релизный гейт с реальными Docker-тестами изоляции и установкой из wheel: `python3 scripts/verify_p0_release.py --mode full --wheelhouse ./ledgergym-wheelhouse --bundle <новая папка> --report <файл>`.
 
 ## Как это устроено
 
@@ -130,7 +150,7 @@ docker run --rm --network none -v "$PWD":/src:ro -v "$PWD/wheelhouse":/wheels:ro
 | Полный технический гейт `verify_p0_release.py --mode full` | 6/6 этапов |
 | Установка из wheel без сети | 175 тестов в установленном пакете |
 | GitHub Actions | 3/3 успешно |
-| Единая команда в чистом контейнере без сети и без git | `success: true`, около 50 с |
+| `docker build` без сети и `docker run --network none ledgergym` | образ собирается за ~10 с, проверка — `success: true` за ~50 с, процесс внутри не от root |
 | Фаззинг среды и оценщика (5 500 некорректных запросов) | необработанных исключений нет |
 
 ## Ограничения
@@ -156,6 +176,8 @@ docker run --rm --network none -v "$PWD":/src:ro -v "$PWD/wheelhouse":/wheels:ro
 | `tests/` | автотесты |
 
 ## Документация
+
+Полный указатель — [docs/README.md](docs/README.md): что актуально для жюри, а что относится к истории разработки.
 
 - [Design note](docs/DESIGN_NOTE.md): архитектура и границы доверия.
 - [Интерфейсы](docs/INTERFACES.md): контракт reset/step, формат находок, правила оценки.

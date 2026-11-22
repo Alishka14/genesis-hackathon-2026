@@ -151,12 +151,25 @@ def _table(title, report):
     return '\n'.join(lines) + '\n'
 
 
+def _brief(title, report):
+    head = f"{'policy':<15}{'P':>6}{'R':>6}{'F1':>6}{'return':>9}{'steps':>7}{'time,s':>8}  clean FA   missed"
+    lines = [title, head, '-' * len(head)]
+    for policy, r in report.items():
+        missed = sum(int(v.split('/')[0]) for v in r['missed_by_type'].values())
+        total = sum(int(v.split('/')[1]) for v in r['missed_by_type'].values())
+        lines.append(f"{policy:<15}{r['precision']:>6.2f}{r['recall']:>6.2f}{r['mean_f1']:>6.2f}{r['mean_return']:>9.3f}"
+                     f"{r['mean_steps']:>7.1f}{r['mean_seconds']:>8.3f}  {r['clean_false_accusation_episodes']}/{r['clean_episodes']:<7}"
+                     f"{missed}/{total}")
+    return '\n'.join(lines) + '\n'
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--dataset', help='existing development dataset with private truth')
     parser.add_argument('--held-out', type=int, default=0, metavar='N',
                         help='also generate N fresh episodes with unseen seeds/parameters')
     parser.add_argument('--json', help='write the full report to this new JSON file')
+    parser.add_argument('--brief', action='store_true', help='aligned plain-text table instead of Markdown')
     args = parser.parse_args(argv)
     if not args.dataset and not args.held_out:
         parser.error('give --dataset and/or --held-out N')
@@ -167,11 +180,13 @@ def main(argv=None):
     text = []
     if args.dataset:
         report['dataset'] = diagnose_dataset(args.dataset)
-        text.append(_table('Published development set (10 train + 10 dev)', report['dataset']))
+        render = _brief if args.brief else _table
+        text.append(render('Published development set (10 train + 10 dev)', report['dataset']))
     if args.held_out:
         report['held_out'] = diagnose_held_out(args.held_out)
         report['held_out_episodes'] = args.held_out
-        text.append(_table(f'Held-out episodes ({args.held_out}, unseen seeds and parameters)', report['held_out']))
+        render = _brief if args.brief else _table
+        text.append(render(f'Held-out episodes ({args.held_out}, unseen seeds and parameters)', report['held_out']))
     if args.json:
         with open(args.json, 'x', encoding='utf-8') as handle:
             json.dump(report, handle, indent=2, sort_keys=True)

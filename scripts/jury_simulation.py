@@ -27,8 +27,15 @@ from ledgergym.company_checks import inspect_company
 from ledgergym.settlement_faults_v2 import inspect_settlement_faults
 from ledgergym.independent_audit import audit_company_public
 
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(tempfile.mkdtemp(prefix='ledgergym-jury-'))
-OUT.mkdir(parents=True, exist_ok=False) if len(sys.argv) > 1 else None
+SUMMARY = '--summary' in sys.argv[1:]
+_paths = [a for a in sys.argv[1:] if a != '--summary']
+OUT = Path(_paths[0]) if _paths else Path(tempfile.mkdtemp(prefix='ledgergym-jury-'))
+OUT.mkdir(parents=True, exist_ok=False) if _paths else None
+
+
+def say(text):
+    if SUMMARY:
+        print(text, flush=True)
 KEYS = {'ledger': 'row_id', 'invoices': 'invoice_id', 'payments': 'payment_id', 'fx': 'rate_id'}
 TYPES = ['duplicate_invoice', 'payment_allocation', 'fx_rate_or_date', 'reporting_period']
 report = {}
@@ -64,6 +71,7 @@ for n, (kind, cfg) in enumerate(HIDDEN):
     except Exception as e:
         gen_fail.append((n, kind, cfg, f'{type(e).__name__}: {e}'))
 report['generation_failures'] = gen_fail
+say(f'generated {len(episodes)} hidden-style episodes (5 clean, 5 interacting, 10 single/mixed), failures: {len(gen_fail)}')
 
 
 # ---------- policies through the public JudgeEnv
@@ -138,6 +146,9 @@ report['policies'] = {p: {'P': round(d['tp'] / (d['tp'] + d['fp']), 3) if d['tp'
                           'compound_F1': round(d['comp_f1'] / d['comp_n'], 3) if d['comp_n'] else None}
                       for p, d in diag.items()}
 report['closed_mode_leaks'] = leaks
+say(f"4 policies x {len(episodes)} episodes in closed mode, leaks of truth into observations: {leaks}")
+for p, r in report['policies'].items():
+    say(f"   {p:<15} P {r['P']:.2f}  R {r['R']:.2f}  F1 {r['F1']:.2f}  return {r['return']:>6.3f}  steps {r['steps']:>4}  clean false accusations {r['clean_false_accusation']}")
 
 
 # ---------- Data & truth: 20 hidden episodes, independent checks from records
@@ -181,6 +192,7 @@ for kind, cfg, ep in episodes:
     if not ok:
         data_notes.append((ep.name, kind, before_ok, evidence_ok, declared_ok, reproduced))
 report['data'] = {'episodes': len(episodes), 'correct': data_ok, 'notes': data_notes}
+say(f'data & truth      {data_ok}/{len(episodes)} episodes (books balance before faults, discrepancy after, evidence reachable, truth = independent audit)')
 
 
 # ---------- Contract & isolation: 20 fixed checks
@@ -275,6 +287,7 @@ def c20():
 for n, f in enumerate([c01, c02, c03, c04, c05, c06, c07, c08, c09, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20], 1):
     chk(f'C{n:02d} {f.__name__}', f)
 report['contract'] = checks
+say(f'contract          {sum(v is True for v in checks.values())}/20 checks')
 
 # ---------- Reward reliability: 20 checks on a faulty and a clean hidden episode
 from ledgergym import score as S
@@ -314,6 +327,7 @@ r('R19 wrong episode_id invalid -1', lambda: R(fe, 'episode-other', O)['return']
 r('R20 timeout gives empty answer', lambda: (lambda env: (time.sleep(1.1), env.step({'name': 'submit', 'args': {'findings': {'episode_id': fid, 'findings': O}}}))[1][3] and env.final_score['tp'] == 0)(
     (lambda e: (e.reset(1, {'mode': 'closed', 'episode_dir': str(fe)}), e)[1])(JudgeEnv(timeout=1))))
 report['reward'] = rw
+say(f'reward            {sum(v is True for v in rw.values())}/20 checks')
 
 # ---------- Reproducibility: 10 replay + 10 permutation/rename
 ID = re.compile(r'^(id|episode|private)-[0-9a-f]{32}$')
@@ -353,6 +367,7 @@ for k in range(10):
     a = policy_run('oracle', e)[0]; b = policy_run('oracle', d)[0]
     rep[f'P{k + 11:02d} permute+rename {e.name}'] = a == b and a['f1'] == 1
 report['reproducibility'] = rep
+say(f'reproducibility   {sum(v is True for v in rep.values())}/20 checks (10 exact replays, 10 permutation + ID renaming)')
 
 # ---------- Alternative readings of the action API (flat form, direct submit args)
 alt = {}
@@ -377,6 +392,13 @@ score = {
 }
 report['simulated_points_excluding_engineering'] = score
 report['simulated_total_out_of_90'] = round(sum(score.values()), 2)
-print(json.dumps(report, indent=1, ensure_ascii=False, default=str))
+if SUMMARY:
+    say(f"api readings      {sum(alt.values())}/3 (canonical, direct submit args, flat action form)")
+    say('')
+    for k, v in score.items():
+        say(f"   {k:<24} {v:>5} / {25 if k != 'reproducibility' else 15}")
+    say(f"   {'total (without engineering)':<24} {report['simulated_total_out_of_90']:>5} / 90")
+else:
+    print(json.dumps(report, indent=1, ensure_ascii=False, default=str))
 failed = [k for d in (checks, rw, rep, alt) for k, v in d.items() if v is not True]
 sys.exit(1 if failed or gen_fail or report['closed_mode_leaks'] or report['data']['correct'] != 20 else 0)

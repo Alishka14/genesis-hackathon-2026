@@ -1,5 +1,6 @@
 """Test-only mirror. Run from a checkout with pytest installed."""
 import argparse
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -24,7 +25,16 @@ def _aggregate(statuses):
     return "VERIFIED_PASS"
 
 
+class MirrorDependencyError(RuntimeError):
+    """A verification prerequisite is missing; nothing was run."""
+
+
 def run():
+    if importlib.util.find_spec("pytest") is None:
+        raise MirrorDependencyError(
+            "pytest is not installed for " + sys.executable
+            + "; install the pinned test dependencies with: "
+            + sys.executable + " -m pip install -r requirements-role3-test.txt")
     root = Path(__file__).resolve().parents[1]
     files = ["tests/test_role3_contract.py", "tests/test_role3_pairs.py", "tests/test_role3_runtime.py",
              "tests/test_role3_review.py"]
@@ -34,7 +44,8 @@ def run():
                                *files, f"--junitxml={output}"], cwd=root,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if not output.is_file():
-            raise RuntimeError("pytest mirror did not produce results")
+            tail = "\n".join(proc.stdout.decode("utf-8", "replace").splitlines()[-5:])
+            raise RuntimeError("pytest mirror did not produce results; last pytest output:\n" + tail)
         cases = {case.attrib["name"]: _status(case) for case in ElementTree.parse(output).iter("testcase")}
     def status(*names):
         return _aggregate([cases.get(name, "NOT_RUN") for name in names])
@@ -65,7 +76,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="optional evaluator-side JSON report")
     args = parser.parse_args()
-    report, rc = run()
+    try:
+        report, rc = run()
+    except MirrorDependencyError as exc:
+        print(f"role3_mirror: NOT_RUN: {exc}", file=sys.stderr)
+        return 2
     payload = json.dumps(report, indent=2) + "\n"
     if args.output:
         args.output.write_text(payload, encoding="utf-8")

@@ -11,3 +11,13 @@ def test_offline_demo_executes_complete_episode():
     assert report['score']['tp'] == 1
     assert report['score']['fp'] == 0
     assert report['score']['fn'] == 0
+
+
+def test_help_flags_print_usage_instead_of_running():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for command in ([sys.executable, '-m', 'ledgergym', '--help'],
+                    [sys.executable, str(root / 'scripts' / 'verify_bundle.py'), '--help']):
+        result = subprocess.run(command, text=True, capture_output=True, check=True, cwd=root)
+        assert result.stdout.startswith('usage:')
+        assert 'prototype' not in result.stdout

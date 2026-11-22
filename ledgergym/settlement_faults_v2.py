@@ -8,8 +8,6 @@ Unrecognized structural/financial damage must fail instead of being labeled.
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import random
 from collections import defaultdict
 

@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import copy
 import json
-from collections import Counter
 
 import pytest
 
 import judge_adapter
-from ledgergym.canonical import JudgeEnv, score_episode
+from ledgergym.canonical import score_episode
 from ledgergym.company_world import build_company
 from ledgergym.company_world_v2 import build_settlement_company
 from ledgergym.company_checks_v2 import validate_settlement_company

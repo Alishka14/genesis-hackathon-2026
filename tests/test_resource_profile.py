@@ -1,6 +1,5 @@
 """Portable contracts for optional local resource telemetry."""
 import json
-from pathlib import Path
 import sys
 
 import pytest

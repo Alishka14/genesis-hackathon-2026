@@ -32,7 +32,7 @@ python3 -m ledgergym.company_dataset "$HOME/ledgergym-run" --evaluate --settleme
 Диагностика агентов (P, R, F1, возврат, шаги, время и разбор сбоев по типам) на этом наборе и на 30 новых эпизодах с невиданными seed и параметрами:
 
 ```bash
-python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-out 30
+python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-out 30 --brief
 ```
 
 ## Проверка одной командой

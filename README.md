@@ -35,6 +35,12 @@ python3 -m ledgergym.company_dataset "$HOME/ledgergym-run" --evaluate --settleme
 python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-out 30 --brief
 ```
 
+Демо работы среды на скриптовой политике (§09 кейса): каждый вызов `reset`/`step` и наблюдение, оценка в закрытом режиме, режим обучения и попытки обмануть награду:
+
+```bash
+python3 examples/judge_walkthrough.py --detailed
+```
+
 ## Проверка одной командой
 
 **Через Docker** (образ на закреплённом по digest `python:3.11.11-slim-bookworm`, тот же, что и для изоляции агента; зависимости тестов закреплены по SHA-256):

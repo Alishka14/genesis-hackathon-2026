@@ -227,7 +227,7 @@ class JudgeEnv:
             if "episode_dir" in config:
                 request = {"mode": mode, "episode_dir": str(Path(config["episode_dir"]).absolute())}
             elif mode == "train":
-                request = {"mode": mode, "team_config": config["team_config"]}
+                request = {"mode": mode, "team_config": config.get("team_config")}
             else:
                 raise ValueError()
             public, truth, empty_score = _prepare(seed, request, self.deadline)

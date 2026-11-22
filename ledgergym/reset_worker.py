@@ -3,7 +3,7 @@ import json
 import sys
 
 from . import canonical
-from .generator import generate_episode
+from .generator import _default_scenario, generate_episode
 
 
 def main():
@@ -12,7 +12,7 @@ def main():
         root = config["episode_dir"]
         truth = canonical._load_truth(root)
     else:
-        public, truth = generate_episode(seed, config["team_config"])
+        public, truth = generate_episode(seed, _default_scenario(config["team_config"]))
     # Empty findings have no evidence IDs to resolve. Delegate even this special
     # case to the same scorer so unavailable public storage cannot award a false TP.
     empty = canonical.score.evaluate(truth["issues"], [], set(), 0)

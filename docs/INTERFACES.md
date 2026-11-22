@@ -10,7 +10,7 @@ make_env()                                # trusted judge object with reset and 
 score_episode(episode_dir, findings, inspection_steps)
 ```
 
-Generation accepts the existing Role 2 team configuration. The output contains `public/` (manifest, policy, ledger, invoices, payments, fx) and judge-only `private/` (truth, provenance). Existing nonempty output directories are not overwritten. It does not replace or expand the financial generator.
+Generation accepts the existing Role 2 team configuration. If `config` is `None`, `{}`, or contains only company keys (`postings`, `documents`, `faults`, `compounds`, `fault_parameters`, `timestamp_offsets`, `evidence_alternatives`) without `scenario`, the judge entry points select the company model (`{"scenario": "company", ...}`); the same applies to `reset(seed, {"mode": "train"})` with an absent or empty `team_config`. Configs naming a scenario are unchanged; unknown keys are still rejected. The output contains `public/` (manifest, policy, ledger, invoices, payments, fx) and judge-only `private/` (truth, provenance). Existing nonempty output directories are not overwritten. It does not replace or expand the financial generator.
 
 `env.reset(seed, {"mode":"closed","episode_dir":path,"team_config":{}})` loads those supplied files, preserves IDs/order/values, and never regenerates after a load failure. `mode="train"` without episode_dir delegates the existing generator using team_config. Reset failures disable the prior episode and return a bounded exception, not a private path or traceback message. Initial output is `({"task":str,"manifest":object,"policy":object,"remaining_steps":100}, {})`.
 

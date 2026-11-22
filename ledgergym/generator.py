@@ -6,6 +6,26 @@ from .period_world import make_period_episode
 from .compound_world import make_fx_allocation, make_duplicate_allocation
 
 
+_COMPANY_KEYS = frozenset({'postings', 'documents', 'faults', 'compounds',
+                           'fault_parameters', 'timestamp_offsets', 'evidence_alternatives'})
+
+
+def _default_scenario(config):
+    """Judge-facing default: configs without a scenario select the company model.
+
+    Applied only at the judge entry points (`judge_adapter.generate_episode` and
+    the canonical train reset). `None`, `{}` and dictionaries made only of
+    company keys used to be rejected there; an external caller now gets the
+    documented company generator instead of an error. Configs that name a
+    scenario are unchanged, and `generate_episode` itself stays strict.
+    """
+    if config is None:
+        return {'scenario': 'company'}
+    if isinstance(config, dict) and 'scenario' not in config and set(config) <= _COMPANY_KEYS:
+        return {'scenario': 'company', **config}
+    return config
+
+
 def generate_episode(seed, config):
     if type(seed) is not int or not isinstance(config, dict):
         raise ValueError('invalid seed or config')

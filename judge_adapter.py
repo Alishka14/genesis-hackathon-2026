@@ -8,6 +8,7 @@ from ledgergym.episode_io import export_episode
 
 
 def generate_episode(seed, config, output_dir):
+    config = generator._default_scenario(config)
     export_options = {"seed": seed}
     if isinstance(config, dict) and config.get("scenario") in (
         "company", "company_settlements", "company_settlement_fault"

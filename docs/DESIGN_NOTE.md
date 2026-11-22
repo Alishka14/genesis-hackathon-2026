@@ -1,6 +1,6 @@
-# LedgerGym — Design Note (release candidate, 21.11.2026)
+# LedgerGym — Design Note (release, 22.11.2026)
 
-**Status:** draft for team and finance-case review, not an approved competition certification. Implementation resides in stacked draft GitHub PRs; no automatic merge/publication/submission. This note describes the architecture actually present in the branch and identifies independent review requirements.
+**Status:** describes the code in `main` as submitted on 22.11.2026. Local verification only; it is not an organizer certification.
 
 ## Purpose and scope
 
@@ -20,16 +20,16 @@ Public episode files: `ledger.csv`, `invoices.jsonl`, `payments.jsonl`, `fx.csv`
 
 ## Empirical evidence and limits
 
-The operator confirmed on the preceding branches:
-- Full integration gate on macOS, Python 3.14.0: all local stages passed.
-- Real pinned-Docker tests on Apple Silicon: 22 passed, 0 failed/skipped.
-- Local installed-wheel offline gate, Python 3.11.18: nine stages passed, 45/45 installed package tests passed; 145 bundle files validated by SHA-256, 60 replays.
-- Development benchmark using mixed 10+10, four baselines: reconciliation TP=42/42, FP=0, FN=0, F1=1.0, mean reward 0.9524. Oracle also F1=1.0 with privileged access to truth; random/mark-all underperform as adversarial baselines. These figures refer only to *known synthetic development data* and are not a validated blind test.
-- Two human-observed CLI demonstrations: older trusted duplicate-invoice prototype TP=1/FP=0/FN=0; clean canonical local episode exact replay, F1=1 and TP=FP=FN=0.
+Measured on 22.11.2026 (details: README "Результаты", `docs/verification/P0_FULL_RUN_2026-11-22.md`):
+- Automated tests on CPython 3.11 and 3.13 pass; the 14 Docker isolation tests pass separately with the pinned image (22/22 Docker-backed checks, 0 skipped). GitHub Actions: 3/3 jobs green.
+- Full release gate `verify_p0_release.py --mode full`: 6/6 stages; installed-wheel offline gate with 175 tests.
+- One-command check `scripts/verify_integration.py --mode focused` passes inside the pinned container with `--network none` and without Git.
+- Four baselines (`ledgergym.agent_diagnostics`): on the open 10+10 set and on 30 held-out episodes with unseen seeds and parameter combinations, oracle and reconciliation reach P = R = F1 = 1 with no false accusation on clean episodes; seeded random and mark-all score F1 = 0 and return −1. Reconciliation shares modelling assumptions with the generator, so its score shows consistency of data and evaluator, not task difficulty.
+- Paired invariance: permuting every table and bijectively renaming every ID (four ID formats) preserves the oracle answer and reward in 40/40 variants through `JudgeEnv` and `score_episode`.
+- Data: reverting the field-level interventions recorded in `provenance.json` restores balanced books (debits = credits per currency; invoice and payment totals reconcile) in 40/40 episodes; all 280 truth evidence sets are reachable through the read tools.
+- Declared amount tolerance: `AMOUNT_TOLERANCE_MINOR = 0` in `ledgergym/score.py` (exact integer minor units).
 
-**New PR changes** to dashboard, full transition export and resource profiling are **unverified until the operator reruns pytest and CLI**. Do not carry a parent-branch PASS badge over to untested new commits.
-
-Known limitations: no externally validated financial corpus; restricted currencies/accounting assumptions; some ambiguous/overpayment and cross-currency allocation scenarios not generated; missing full EQT/FAA diagnostics and broad invariance suite; user interface limited to read-only exploration; no standalone trained RL/LLM policy; final hosted GitHub Actions jobs lack runner assignment (issue #29); official judge resource/policy fit still requires manual owner review.
+Known limitations: no externally validated financial corpus; KZT/USD and simplified accrual model (no taxes, no realised FX differences); v2 settlement scenarios cover duplicates and allocations only; no trained RL/LLM policy (optional per the case); dashboard is read-only and local; the Docker boundary has tests but no independent security audit; the jury's resource limits (2 CPU, 4 GB, 60 s/episode) are observed locally (peak RSS ≈ 0.2 GB), not enforced.
 
 ## Reproducibility and safe deployment
 
@@ -39,8 +39,6 @@ Known limitations: no externally validated financial corpus; restricted currenci
 - `verify_integration.py` and `verify_offline_release.py` write sanitized aggregate reports and do not claim official organizer certification.
 - Hashes validate delivered bundle file contents, not author identity or full supply-chain provenance.
 
-## Submission sign-off (still open)
+## Licence and disclosure
 
-The captain/team must agree on repo merge, authorship, choice of license for the team's own code, disclosure of AI assistance and third-party notices, accessibility of the GitHub repository, video recording, slides, Google Drive document and formal contest submission. See `docs/SUBMISSION_CHECKLIST.md`.
-
-This note intentionally does not invent team members, official judge scores, a chosen license, or deployed frontend hosting.
+Own code: MIT (`LICENSE`). Third-party build/test components: `THIRD_PARTY_NOTICES.md`. AI assistance (OpenAI Codex, ChatGPT, Claude Code): `docs/PROVENANCE_AND_AI_DISCLOSURE.md`. All data is synthetic.

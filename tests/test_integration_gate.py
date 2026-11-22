@@ -166,3 +166,21 @@ def test_clean_git_index_passes_without_exposing_filenames(monkeypatch):
     assert gate._audit_tracked_private_files() == {
         "status": "pass", "tracked_count": 2, "forbidden_count": 0
     }
+
+
+def test_without_git_the_source_tree_is_scanned(monkeypatch, tmp_path):
+    def no_git(*args, **kwargs):
+        raise OSError("git not installed")
+    monkeypatch.setattr(gate.subprocess, "run", no_git)
+    monkeypatch.setattr(gate, "ROOT", tmp_path)
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "module.py").write_text("x = 1\n")
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "private_pair_index.json").write_text("{}")
+    clean = gate._audit_tracked_private_files()
+    assert clean == {"status": "pass", "mode": "filesystem_scan", "reason": "git_unavailable",
+                     "scanned_count": 1, "forbidden_count": 0}
+    (tmp_path / "ep" / "private").mkdir(parents=True)
+    (tmp_path / "ep" / "private" / "truth.json").write_text("{}")
+    leaked = gate._audit_tracked_private_files()
+    assert leaked["status"] == "fail" and leaked["forbidden_count"] == 1

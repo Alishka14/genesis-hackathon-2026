@@ -24,6 +24,8 @@ Canonical actions are `{"name":NAME,"args":ARGUMENTS}`:
 | calculator | expression | Decimal result string |
 | submit | findings: {episode_id, findings:[...]} | {accepted:true} |
 
+Two further readings of the case's `submit(findings)` wording are accepted and scored identically: the flat form `{"action": NAME, ...args}` (for example `{"action": "submit", "episode_id": ..., "findings": [...]}`), and submit args given directly as `{"episode_id": ..., "findings": [...]}`. Any other shape, extra key or wrong type is rejected as before.
+
 Step returns `({"result":value_or_null,"error":null_or_{code,message},"remaining_steps":int}, reward, terminated, truncated, {})`. Unknown actions/tables/IDs and malformed reads spend one action and produce bounded errors. Malformed submit terminates; closed reward is still zero. The findings validator and matcher remain Role 4 implementations; their documented outstanding normalization defects are not silently replaced here.
 
 One hundred actions include submit; 99 inspections plus submit are accepted, while 100 inspections truncate to empty findings. Inspection cost excludes submit. The deadline starts at reset entry and includes policy execution. Completion freezes the result until reset. Post-terminal operations cannot rescore or append findings.

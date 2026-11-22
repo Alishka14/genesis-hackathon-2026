@@ -140,10 +140,31 @@ def score_episode(episode_dir, findings, inspection_steps):
     return _metrics(_scorer(public, truth)(findings["findings"], inspection_steps))
 
 
+def _flat_alias(action):
+    """Accept the flat reading of the case API: {"action": NAME, **args}.
+
+    It is rewritten to the canonical {"name", "args"} envelope; for submit the
+    flat fields episode_id/findings become the findings.json object. Anything
+    that is not exactly this shape is left untouched (and rejected as before).
+    """
+    if type(action) is not dict or "action" not in action or {"name", "args"} & set(action):
+        return action
+    name = action["action"]
+    args = {key: value for key, value in action.items() if key != "action"}
+    return {"name": name, "args": args}
+
+
 def _transport(action):
-    """Convert the published envelope. Invalid submits remain terminal submissions."""
+    """Convert the published envelope. Invalid submits remain terminal submissions.
+
+    Besides the canonical {"name","args"} form, two readings of the case's
+    `submit(findings)` / findings.json wording are accepted: the flat
+    {"action": NAME, ...} form, and submit args given directly as
+    {"episode_id", "findings": [...]} instead of {"findings": {...}}.
+    """
     if type(action) is not dict:
         return {}
+    action = _flat_alias(action)
     name = action.get("name")
     malformed = {"action": "submit"} if name == "submit" else {}
     if (not bounded_json(action) or set(action) != {"name", "args"}
@@ -151,6 +172,8 @@ def _transport(action):
         return malformed
     args = action["args"]
     if name == "submit":
+        if set(args) == {"episode_id", "findings"} and type(args["findings"]) is list:
+            args = {"findings": args}
         if set(args) != {"findings"} or type(args["findings"]) is not dict:
             return malformed
         envelope = args["findings"]

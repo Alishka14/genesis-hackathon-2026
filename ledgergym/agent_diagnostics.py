@@ -33,7 +33,7 @@ HELD_OUT_CONFIGS = (
     {'postings': 2000, 'documents': 200, 'faults': {'duplicate_invoice': 2, 'payment_allocation': 2,
      'fx_rate_or_date': 2, 'reporting_period': 2}, 'compounds': {'duplicate_allocation': 1, 'fx_allocation': 1}},
     {'postings': 600, 'documents': 60, 'reporting_month': '2027-04',
-     'fx_rate_pattern': 'volatile'} ,
+     'fx_rate_pattern': 'volatile'},
     {'postings': 800, 'documents': 100, 'faults': {'fx_rate_or_date': 2, 'duplicate_invoice': 2},
      'fault_parameters': 'varied', 'timestamp_offsets': 'mixed', 'evidence_alternatives': True,
      'reporting_month': '2028-02', 'fx_rate_pattern': 'volatile'},

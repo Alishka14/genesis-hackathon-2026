@@ -6,8 +6,10 @@ from .period_world import make_period_episode
 from .compound_world import make_fx_allocation, make_duplicate_allocation
 
 
-_COMPANY_KEYS = frozenset({'postings', 'documents', 'faults', 'compounds',
-                           'fault_parameters', 'timestamp_offsets', 'evidence_alternatives'})
+def _company_keys():
+    # Derived from the company generator so new opt-in options are recognised here too.
+    from .company_world import OPTIONS
+    return frozenset({'postings', 'documents', 'faults', 'compounds', *OPTIONS})
 
 
 def _default_scenario(config):
@@ -21,7 +23,7 @@ def _default_scenario(config):
     """
     if config is None:
         return {'scenario': 'company'}
-    if isinstance(config, dict) and 'scenario' not in config and set(config) <= _COMPANY_KEYS:
+    if isinstance(config, dict) and 'scenario' not in config and set(config) <= _company_keys():
         return {'scenario': 'company', **config}
     return config
 

@@ -44,3 +44,17 @@ def test_unknown_keys_and_named_scenarios_keep_previous_behaviour(tmp_path):
 def test_train_reset_without_team_config_uses_company_default(config):
     obs, info = JudgeEnv().reset(5, config)
     assert obs["remaining_steps"] == 100 and info == {}
+
+
+@pytest.mark.parametrize("config", [
+    {"reporting_month": "2028-02"},
+    {"fx_rate_pattern": "volatile", "faults": {"fx_rate_or_date": 1}},
+    {"reporting_month": "2031-12", "fx_rate_pattern": "volatile", "fault_parameters": "varied"},
+])
+def test_every_company_option_is_accepted_without_scenario(tmp_path, config):
+    from ledgergym.company_world import OPTIONS
+    assert set(config) - {"faults"} <= set(OPTIONS)
+    judge_adapter.generate_episode(8, config, tmp_path / "ep")
+    manifest = json.loads((tmp_path / "ep" / "public" / "manifest.json").read_text())
+    if "reporting_month" in config:
+        assert manifest["period_start"].startswith(config["reporting_month"])

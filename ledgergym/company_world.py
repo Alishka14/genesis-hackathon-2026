@@ -18,8 +18,22 @@ def _convert(amount, rate):
         return int((Decimal(amount) * Decimal(rate)).quantize(Decimal('1'), rounding=ROUND_HALF_EVEN))
 
 
+OPTIONS = {
+    # fixed: wrong FX rate is always the previous day's, partial allocation is always 50 %,
+    # duplicates only on KZT pairs. varied: rate date shifted 1-3 days either way,
+    # allocation 25/50/75 %, duplicates on any pair.
+    'fault_parameters': ('fixed', ('fixed', 'varied')),
+    # uniform: legacy offsets. mixed: the same instants written with -05:00 ... +06:00 offsets.
+    'timestamp_offsets': ('uniform', ('uniform', 'mixed')),
+    # Adds a second, smaller sufficient evidence set where the canonical chain over-specifies:
+    # fx_rate_or_date without the invoice document, duplicate_invoice with the two invoice documents only.
+    'evidence_alternatives': (False, (False, True)),
+}
+_RENDER_OFFSETS = tuple(timezone(timedelta(hours=h)) for h in (-5, 0, 3, 5, 6))
+
+
 def _config(config):
-    if not isinstance(config, dict) or set(config) - {'postings', 'documents', 'faults', 'compounds'}:
+    if not isinstance(config, dict) or set(config) - {'postings', 'documents', 'faults', 'compounds', *OPTIONS}:
         raise ValueError('unknown company configuration')
     postings, documents = config.get('postings', 400), config.get('documents', 80)
     if type(postings) is not int or not 200 <= postings <= 2000 or type(documents) is not int or not 20 <= documents <= 200:
@@ -34,7 +48,18 @@ def _config(config):
         result[key] = {name: counts.get(name, 0) for name in allowed}
     if sum(result['faults'].values()) + 2 * sum(result['compounds'].values()) > 12:
         raise ValueError('at most twelve faults are supported')
+    # Opt-in variation only: configs without these keys reproduce the legacy episodes byte for byte.
+    for key, (default, allowed) in OPTIONS.items():
+        if key in config:
+            value = config[key]
+            if type(value) is not type(default) or value not in allowed:
+                raise ValueError(f'invalid {key}')
+            result[key] = value
     return result
+
+
+def _option(config, key):
+    return config.get(key, OPTIONS[key][0])
 
 
 def _plan(seed, config, payment_count):
@@ -55,7 +80,7 @@ def _plan(seed, config, payment_count):
                 candidates = [i for i in candidates if i % 2 == 1]
                 if kind == 'fx_allocation':
                     candidates = [i for i in candidates if i < 12]
-            elif kind in ('duplicate_invoice', 'duplicate_allocation'):
+            elif kind in ('duplicate_invoice', 'duplicate_allocation') and _option(config, 'fault_parameters') == 'fixed':
                 candidates = [i for i in candidates if i % 2 == 0]
             if not candidates:
                 raise ValueError('not enough eligible business operations for fault mix')
@@ -175,14 +200,19 @@ def build_company(seed, config):
     provenance = {'seed': seed, 'generator_version': VERSION, 'config': copy.deepcopy(config),
                   'clean_preflight': 'passed', 'interventions': [], 'compound_groups': []}
     private_rng = random.Random(f'{VERSION}:private:{seed}')
+    varied = _option(config, 'fault_parameters') == 'varied'
+    fault_rng = random.Random(f'{VERSION}:fault-parameters:{seed}')
     def change(table, record, field, value, key):
         provenance['interventions'].append({'table': table, 'id': record[key], 'field': field,
                                            'before': copy.deepcopy(record[field]), 'after': copy.deepcopy(value)})
         record[field] = value
-    def issue(kind, affected, amount, currency, evidence):
+    def issue(kind, affected, amount, currency, evidence, alternative=None):
+        sets = [sorted(set(evidence))]
+        if _option(config, 'evidence_alternatives') and alternative is not None:
+            sets.append(sorted(set(alternative)))
         item = {'issue_id': f'private-{private_rng.getrandbits(128):032x}', 'type': kind,
                 'affected_ids': sorted(affected), 'expected_amount_minor': amount, 'currency': currency,
-                'allowed_evidence_sets': [sorted(set(evidence))]}
+                'allowed_evidence_sets': sets}
         truth['issues'].append(item)
         return item['issue_id']
     for kind, pair_index in plan:
@@ -196,22 +226,28 @@ def build_company(seed, config):
             for line in second['line_items']:
                 change('invoices.line_items', line, 'service_ref', service, 'line_id')
             group.append(issue('duplicate_invoice', [first['invoice_id'], second['invoice_id']], second['total_minor'], second['currency'],
-                               [first['doc_id'], second['doc_id'], credits[first['invoice_id']]['row_id'], credits[second['invoice_id']]['row_id']]))
+                               [first['doc_id'], second['doc_id'], credits[first['invoice_id']]['row_id'], credits[second['invoice_id']]['row_id']],
+                               alternative=[first['doc_id'], second['doc_id']]))
         if kind in ('fx_rate_or_date', 'fx_allocation'):
-            previous = (datetime.fromisoformat(payment['timestamp']).astimezone(_ZONE).date() - timedelta(days=1)).isoformat()
-            wrong_rate = by_date[previous]
+            local_day = datetime.fromisoformat(payment['timestamp']).astimezone(_ZONE).date()
+            shift = -1
+            if varied:
+                shift = fault_rng.choice([d for d in (-3, -2, -1, 1, 2, 3)
+                                          if (local_day + timedelta(days=d)).isoformat() in by_date])
+            wrong_rate = by_date[(local_day + timedelta(days=shift)).isoformat()]
             wrong = _convert(payment['amount_minor'], wrong_rate['rate'])
             for row in rows:
                 change('ledger', row, 'rate_id', wrong_rate['rate_id'], 'row_id')
                 change('ledger', row, 'debit_minor' if row['account'] == 'payable' else 'credit_minor', wrong, 'row_id')
             group.append(issue('fx_rate_or_date', [payment['payment_id'], rows[0]['row_id']],
                                abs(_convert(payment['amount_minor'], rate) - wrong), 'KZT',
-                               [first['doc_id'], payment['doc_id'], *[r['row_id'] for r in rows], rate_id]))
+                               [first['doc_id'], payment['doc_id'], *[r['row_id'] for r in rows], rate_id],
+                               alternative=[payment['doc_id'], *[r['row_id'] for r in rows], rate_id]))
         if kind in ('payment_allocation', 'fx_allocation', 'duplicate_allocation'):
             amount = payment['amount_minor']
             wrong_target = kind == 'duplicate_allocation'
             refs = [{'invoice_id': second['invoice_id'] if wrong_target else first['invoice_id'],
-                     'amount_minor': amount if wrong_target else amount // 2}]
+                     'amount_minor': amount if wrong_target else amount * (fault_rng.choice([1, 2, 3]) if varied else 2) // 4}]
             change('payments', payment, 'invoice_refs', refs, 'payment_id')
             gap = amount if wrong_target else amount - refs[0]['amount_minor']
             evidence = [first['doc_id'], payment['doc_id'], *[r['row_id'] for r in rows]]
@@ -228,6 +264,16 @@ def build_company(seed, config):
                                [first['doc_id'], credits[first['invoice_id']]['row_id']]))
         if kind in COMPOUNDS:
             provenance['compound_groups'].append({'kind': kind, 'issue_ids': group, 'payment_id': payment['payment_id']})
+    if _option(config, 'timestamp_offsets') == 'mixed':
+        offset_rng = random.Random(f'{VERSION}:timestamp-offsets:{seed}')
+        def render(stamp):
+            return datetime.fromisoformat(stamp).astimezone(offset_rng.choice(_RENDER_OFFSETS)).isoformat()
+        for invoice in invoices:
+            invoice['issued_at'], invoice['due_at'] = render(invoice['issued_at']), render(invoice['due_at'])
+        for payment in payments:
+            payment['timestamp'] = render(payment['timestamp'])
+        for row in ledger:
+            row['timestamp'] = render(row['timestamp'])
     order_rng = random.Random(f'{VERSION}:order:{seed}')
     for table in tables.values():
         order_rng.shuffle(table)

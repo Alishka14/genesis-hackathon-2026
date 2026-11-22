@@ -7,15 +7,20 @@ from .company_world import build_company
 from .episode_io import export_episode
 
 
-def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives=False):
+VARIED_OPTIONS = {'fault_parameters': 'varied', 'timestamp_offsets': 'mixed', 'evidence_alternatives': True}
+
+
+def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives=False, varied=False):
     """Create an open, disjoint 10+10 dataset with optional v2 clean controls.
 
     The default v1-only profile remains unchanged for existing integrations.
     The opt-in profile replaces two plan slots per split with versioned clean
     split/refund episodes, retaining all four faults, both compounds and the
     12-issue stress scenario in the other eight slots.
+    varied=True applies company_world's opt-in variation options to v1 episodes
+    (same plans, sizes and seeds); the default output is unchanged.
     """
-    if type(seed) is not int or type(include_settlement_hard_negatives) is not bool:
+    if type(seed) is not int or type(include_settlement_hard_negatives) is not bool or type(varied) is not bool:
         raise ValueError('invalid dataset seed or clean-control option')
     root = Path(root)
     root.mkdir(mode=0o700, parents=False, exist_ok=False)
@@ -68,7 +73,8 @@ def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives
                                    'fault': plan['fault']})
             else:
                 public, truth, provenance = build_company(
-                    episode_seed, {'postings': postings, 'documents': documents, **plan})
+                    episode_seed, {'postings': postings, 'documents': documents, **plan,
+                                   **(VARIED_OPTIONS if varied else {})})
             episode_id = public['manifest']['episode_id']
             if episode_id in used_ids:
                 raise ValueError('duplicate episode ID')
@@ -87,9 +93,11 @@ def main():
     parser.add_argument('--evaluate', action='store_true', help='run four trusted baselines and verify portable trajectories offline')
     parser.add_argument('--settlement-hard-negatives', action='store_true',
                         help='opt in to one clean and one faulted v2 company per split; preserve 10+10')
+    parser.add_argument('--varied', action='store_true',
+                        help='opt in to varied fault parameters, mixed UTC offsets and alternative evidence sets')
     args = parser.parse_args()
     index = create_company_dataset(args.output, seed=args.seed,
-        include_settlement_hard_negatives=args.settlement_hard_negatives)
+        include_settlement_hard_negatives=args.settlement_hard_negatives, varied=args.varied)
     result = {'kind': index['kind'], 'train': len(index['train']), 'dev': len(index['dev'])}
     if args.evaluate:
         from .fixture_evaluation import evaluate_fixture_dataset

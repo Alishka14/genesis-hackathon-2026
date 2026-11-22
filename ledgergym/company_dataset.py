@@ -7,7 +7,9 @@ from .company_world import build_company
 from .episode_io import export_episode
 
 
-VARIED_OPTIONS = {'fault_parameters': 'varied', 'timestamp_offsets': 'mixed', 'evidence_alternatives': True}
+VARIED_OPTIONS = {'fault_parameters': 'varied', 'timestamp_offsets': 'mixed',
+                  'evidence_alternatives': True, 'reporting_month': '2028-02',
+                  'fx_rate_pattern': 'volatile'}
 
 
 def create_company_dataset(root, *, seed=2026, include_settlement_hard_negatives=False, varied=False):
@@ -94,7 +96,7 @@ def main():
     parser.add_argument('--settlement-hard-negatives', action='store_true',
                         help='opt in to one clean and one faulted v2 company per split; preserve 10+10')
     parser.add_argument('--varied', action='store_true',
-                        help='opt in to varied fault parameters, mixed UTC offsets and alternative evidence sets')
+                        help='opt in to varied faults, mixed offsets, leap-year month, volatile FX and alternative evidence')
     args = parser.parse_args()
     index = create_company_dataset(args.output, seed=args.seed,
         include_settlement_hard_negatives=args.settlement_hard_negatives, varied=args.varied)

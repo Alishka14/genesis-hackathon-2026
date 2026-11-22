@@ -99,3 +99,75 @@ jobs:
           docker run --rm --network none ledgergym-ci | tee docker-check.log
           grep -q '"success": true' docker-check.log
           docker run --rm --network none ledgergym-ci python scripts/jury_simulation.py > /dev/null
+
+  full-p0-final-main:
+    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'audit/full-p0-main-6da4c166' }}
+    name: Full six-stage P0 on exact merged main SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact released main commit (not PR merge preview)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 6da4c166fd022ea3da4d6b16c209d1bcdfc1c4b9
+          persist-credentials: false
+      - name: Python 3.11 for offline release builder
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Verify exact checkout and install locked test requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual=$(git rev-parse HEAD)
+          test "$actual" = 6da4c166fd022ea3da4d6b16c209d1bcdfc1c4b9
+          test -z "$(git status --porcelain)"
+          python3.11 -m pip install -r requirements-role3-test.txt
+          docker pull python:3.11.11-slim-bookworm@sha256:081075da77b2b55c23c088251026fb69a7b2bf92471e491ff5fd75c192fd38e5
+      - name: Prepare locked eight-wheel local wheelhouse (network permitted only here)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3.11 scripts/prepare_wheelhouse.py "$RUNNER_TEMP/p0-wheelhouse"
+      - name: Run release preflight in full mode on exact main
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3.11 scripts/verify_p0_release.py \
+            --mode full \
+            --wheelhouse "$RUNNER_TEMP/p0-wheelhouse" \
+            --bundle "$RUNNER_TEMP/p0-bundle" \
+            --report "$RUNNER_TEMP/p0-report.json" \
+            --timeout 1200
+      - name: Print sanitized P0 report even if checks fail
+        if: always()
+        shell: bash
+        run: |
+          if test -s "$RUNNER_TEMP/p0-report.json"; then
+            cat "$RUNNER_TEMP/p0-report.json"
+          else
+            echo "P0 report not produced; release gate NOT VERIFIED"
+            exit 1
+          fi
+      - name: Enforce all six release gates, Docker non-skips, offline installed-wheel checks
+        shell: bash
+        run: |
+          python3.11 - <<'PY'
+          import json, os, pathlib
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "p0-report.json"
+          r = json.loads(p.read_text())
+          expected = {"source_provenance", "frontend_js_syntax", "integration",
+                      "docker_isolation", "offline_wheel", "resource_observation"}
+          assert r["mode"] == "full" and r["success"] is True
+          assert set(r["stages"]) == expected, r["stages"]
+          assert all(r["stages"][k]["status"] == "pass" for k in expected)
+          assert r["stages"]["source_provenance"]["commit"] == "6da4c166fd022ea3da4d6b16c209d1bcdfc1c4b9"
+          assert r["stages"]["source_provenance"]["clean_checkout"]
+          docker = r["stages"]["docker_isolation"]["metrics"]
+          assert docker["executed"] >= 22 and docker["failed"] == 0 and docker["skipped"] == 0
+          assert r["docker_isolation_covered"] is True
+          offline = r["stages"]["offline_wheel"]["metrics"]
+          assert offline["verified_stages"] == 10 and offline["installed_tests"] >= 45
+          assert r["contest_certified"] is False and r["submission_ready"] is False
+          print("FINAL MAIN P0 FULL VERIFIED: 6/6 stages; clean exact SHA; real Docker with no skips; offline installed wheel")
+          PY

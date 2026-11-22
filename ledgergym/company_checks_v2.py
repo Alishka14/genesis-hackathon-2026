@@ -7,7 +7,7 @@ policy are accepted. Not a general accounting or audit standards engine.
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 import re

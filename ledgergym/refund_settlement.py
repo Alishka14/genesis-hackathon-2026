@@ -136,7 +136,7 @@ def apply_refunds(invoices, payments, refunds):
         raise ValueError("cumulative refunds exceed original allocation")
 
     balances = deepcopy(payment_result["invoice_balances"])
-    for (pid, iid), amount in claimed.items():
+    for (_pid, iid), amount in claimed.items():
         current = balances[iid]
         current["paid_minor"] -= amount
         current["outstanding_minor"] += amount

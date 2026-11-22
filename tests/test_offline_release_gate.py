@@ -1,8 +1,6 @@
 """Offline bundle integrity and release-gate contracts, no network required."""
 import hashlib
 import json
-from pathlib import Path
-from xml.etree import ElementTree
 
 import pytest
 

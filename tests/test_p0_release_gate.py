@@ -4,7 +4,6 @@ No real Docker/CI/bundle operations occur here: these tests exercise the
 aggregator's validation and fail-closed behavior, not full release readiness.
 """
 import json
-from pathlib import Path
 from xml.etree import ElementTree
 
 import pytest

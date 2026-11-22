@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import copy
 import json
-from pathlib import Path
 
 from .baselines import run_baseline
 from .company_checks import validate_company

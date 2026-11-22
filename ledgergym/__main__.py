@@ -1,9 +1,15 @@
 """Run a small, trusted local demonstration; no network or external data."""
+import argparse
 import json
 from .env import LedgerSandbox
 
 
-def main():
+def main(argv=None):
+    argparse.ArgumentParser(
+        prog="ledgergym",
+        description="Run one small trusted local demonstration episode (synthetic "
+                    "duplicate invoice) and print its score. Not a benchmark.",
+    ).parse_args(argv)
     env = LedgerSandbox()
     initial, _ = env.reset(seed=42, config={'scenario': 'duplicate_invoice', 'fault': True})
     invoices = env.step({"action": "list_records", "table": "invoices", "limit": 50})[0]["records"]

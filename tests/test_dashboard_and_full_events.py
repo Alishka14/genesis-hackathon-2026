@@ -1,6 +1,5 @@
 """P0: full development events and local dashboard public-only boundary."""
 import json
-from pathlib import Path
 import threading
 
 import pytest
@@ -314,6 +313,9 @@ def test_optional_evaluator_research_aggregate_requires_matching_dataset(tmp_pat
             assert data["report"]["episodes"] == 20
             assert data["report"]["policies"]["reconciliation"]["tp"] == 42
             assert data["report"]["official_score_modified"] is False
+            allowed = ("kind", "episodes", "policies", "clean_case_counts",
+                       "official_score_modified", "contest_certified", "limitations")
+            assert data["report"] == {key: research[key] for key in allowed if key in research}
             assert "dataset_index_sha256" not in data["report"]
             assert b'"truth"' not in raw and b'"issue_id"' not in raw
         finally:

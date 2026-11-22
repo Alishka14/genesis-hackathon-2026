@@ -4,6 +4,7 @@ The SHA256SUMS.json manifest itself is not signed: this detects accidental
 modifications and unexpected files, not malicious replacement by a party that
 can edit both the manifest and its contents.
 """
+import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
@@ -60,6 +61,11 @@ def verify_bundle(root):
 
 
 def main():
+    argparse.ArgumentParser(
+        description='Verify the offline bundle that contains this script: every file '
+                    'listed in SHA256SUMS.json, no extra files and all SHA-256 hashes. '
+                    'Run it from inside a built bundle; it takes no arguments.',
+    ).parse_args()
     try:
         report = verify_bundle(Path(__file__).resolve().parent)
     except (ValueError, OSError) as exc:

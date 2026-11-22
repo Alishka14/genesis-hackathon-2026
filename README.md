@@ -41,6 +41,8 @@ python3 -m ledgergym.agent_diagnostics --dataset "$HOME/ledgergym-run" --held-ou
 python3 examples/judge_walkthrough.py --detailed
 ```
 
+**Готовый открытый набор 10+10** с 60 траекториями лежит в репозитории: [data/ledgergym-public-10plus10.zip](data/) (7,7 МБ, только публичные файлы, SHA-256 и проверка — в [data/README.md](data/README.md)).
+
 ## Проверка одной командой
 
 **Через Docker** (образ на закреплённом по digest `python:3.11.11-slim-bookworm`, тот же, что и для изоляции агента; зависимости тестов закреплены по SHA-256):

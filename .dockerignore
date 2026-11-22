@@ -16,3 +16,6 @@ ledgergym-public-*
 ledgergym-research-*
 ledgergym-*-report*.json
 **/private
+
+# Published data archive is not needed inside the verification image.
+data/*.zip

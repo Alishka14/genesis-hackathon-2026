@@ -1,6 +1,6 @@
 # LedgerGym — Design Note (release, 22.11.2026)
 
-**Status:** describes the code in `main` as submitted on 22.11.2026. Local verification only; it is not an organizer certification.
+**Status:** describes the release candidate in `main` on 22.11.2026. Official submission has not been independently confirmed; local and GitHub CI verification are not organizer certification.
 
 ## Purpose and scope
 
